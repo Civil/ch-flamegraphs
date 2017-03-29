@@ -1,0 +1,10 @@
+removelowestpct: 0.05
+clusters:
+    -
+      name: "example"
+      hosts:
+          - 127.0.0.1
+    -
+      name: "example2"
+      hosts:
+          - 127.0.0.2
