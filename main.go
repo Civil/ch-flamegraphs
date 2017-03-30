@@ -23,10 +23,24 @@ import (
 	"strconv"
 
 	"github.com/kshvakov/clickhouse"
+	ecache "github.com/dgryski/go-expirecache"
 )
 
 var logger *zap.Logger
-var FetchesPerClusterMax int32
+
+// Copied from github.com/dgryski/carbonapi
+
+type limiter chan struct{}
+
+func (l limiter) enter() { l <- struct{}{} }
+func (l limiter) leave() { <-l }
+
+func newLimiter(l int) limiter {
+	return make(chan struct{}, l)
+}
+
+// End of copy from carbonapi
+
 
 type flameGraphNode struct {
 	id          uint64
@@ -145,6 +159,9 @@ func convertToClickhouse(node *flameGraphNode, timestamp int64) []clickhouseFiel
 }
 
 func sendToClickhouse(node *flameGraphNode) {
+	logger := logger.With(
+		zap.String("cluster", node.cluster),
+	)
 	logger.Info("Sending results to clickhouse")
 	now := time.Now()
 	t := now.Unix()
@@ -153,7 +170,7 @@ func sendToClickhouse(node *flameGraphNode) {
 
 	connect, err := sql.Open("clickhouse", config.ClickhouseHost)
 	if err != nil {
-		logger.Fatal("error connecting to clickhouse",
+		logger.Error("error connecting to clickhouse",
 			zap.Error(err),
 		)
 		return
@@ -189,9 +206,10 @@ func sendToClickhouse(node *flameGraphNode) {
 	`)
 
 	if err != nil {
-		logger.Fatal("failed to create table",
+		logger.Error("failed to create table",
 			zap.Error(err),
 		)
+		return
 	}
 
 	tx, err := connect.Begin()
@@ -242,19 +260,15 @@ func getMetrics(ips []string) []string {
 	httpClient := &http.Client{Timeout: 120 * time.Second}
 	responses := make([][]string, len(ips))
 	responseUniq := make(map[string]struct{})
-	fetchesPerCluster := int32(0)
+	fetchingLimiter := newLimiter(config.FetchPerCluster)
 
 	var wg sync.WaitGroup
 	for idx, ip := range ips {
-		fetchesInProgress := atomic.LoadInt32(&fetchesPerCluster)
-		if fetchesInProgress > FetchesPerClusterMax {
-			wg.Wait()
-		}
-		atomic.AddInt32(&fetchesPerCluster, 1)
+		fetchingLimiter.enter()
 		wg.Add(1)
 		go func() {
+			defer fetchingLimiter.leave()
 			defer wg.Done()
-			defer atomic.AddInt32(&fetchesPerCluster, -1)
 			// TODO: Move to protobuf3
 			url := "http://" + ip + ":8080/metrics/list/?format=json"
 			responses[idx] = getList(httpClient, url)
@@ -369,6 +383,7 @@ func parseTree(cluster *Cluster, removeLowest float64) {
 }
 
 func processData(removeLowest float64) {
+	clusterLimiter := newLimiter(config.ClustersInParallel)
 	for {
 		t0 := time.Now()
 		logger.Info("Iteration start")
@@ -376,19 +391,16 @@ func processData(removeLowest float64) {
 		var wg sync.WaitGroup
 		clusters := int32(0)
 		for idx := range config.Clusters {
-			runningRoutines := atomic.LoadInt32(&clusters)
-			if runningRoutines > config.ClustersInParallel {
-				wg.Wait()
-			}
+			clusterLimiter.enter()
 			cluster := &config.Clusters[idx]
 			wg.Add(1)
-			atomic.AddInt32(&clusters, 1)
 			logger.Info("Fetching results",
 				zap.Any("cluster", cluster),
 			)
 
 			go func() {
 				parseTree(cluster, removeLowest)
+				clusterLimiter.leave()
 				wg.Done()
 				atomic.AddInt32(&clusters, -1)
 			}()
@@ -405,9 +417,27 @@ func processData(removeLowest float64) {
 	}
 }
 
+type expireCache struct {
+	ec *ecache.Cache
+}
+
+func (ec expireCache) get(k string) ([]byte, bool) {
+	v, ok := ec.ec.Get(k)
+
+	if !ok {
+		return nil, false
+	}
+
+	return v.([]byte), true
+}
+
+func (ec expireCache) set(k string, v []byte, expire int32) {
+	ec.ec.Set(k, v, uint64(len(v)), expire)
+}
+
 var config = struct {
-	ClustersInParallel int32
-	FetchPerCluster    int32
+	ClustersInParallel int
+	FetchPerCluster    int
 	RemoveLowestPct    float64
 	RerunInterval      time.Duration
 	Clusters           []Cluster
@@ -415,6 +445,10 @@ var config = struct {
 	ClickhouseEnabled  bool
 	ClickhouseHost     string
 	Listen             string
+	CacheSize          uint64
+	CacheTimeoutSeconds int32
+
+	queryCache         expireCache
 }{
 	ClustersInParallel: 2,
 	FetchPerCluster:    4,
@@ -423,6 +457,8 @@ var config = struct {
 	ClickhouseEnabled:  true,
 	ClickhouseHost:     "tcp://127.0.0.1:9000?debug=false",
 	Listen:             "[::]:8088",
+	CacheSize:          0,
+	CacheTimeoutSeconds: 60,
 }
 
 func reconstructTree(data map[uint64]clickhouseField, root *flameGraphNode, minValue uint64) {
@@ -443,25 +479,25 @@ func reconstructTree(data map[uint64]clickhouseField, root *flameGraphNode, minV
 	}
 }
 
-func getHandler(w http.ResponseWriter, req *http.Request) {
+// Handler for the request /clusters
+func clustersHandler(w http.ResponseWriter, req *http.Request) {
 	t0 := time.Now()
-	logger := logger.With(zap.String("handler", "get"))
-	// TODO: Add validation
-	ts := req.FormValue("ts")
-	cluster := req.FormValue("cluster")
-	if ts == "" || cluster == "" {
-		logger.Fatal("You must specify cluster and ts",
+	logger := logger.With(zap.String("handler", "clusters"))
+
+	cacheKey := "clusters"
+
+	if response, ok := config.queryCache.get(cacheKey); ok {
+		logger.Info("request served",
 			zap.Duration("runtime", time.Since(t0)),
-			zap.Int("http_code", http.StatusBadRequest),
+			zap.Int("http_code", http.StatusOK),
 		)
-		http.Error(w, "Error fetching data",
-			http.StatusBadRequest)
+		w.Write(response)
 		return
 	}
 
 	connect, err := sql.Open("clickhouse", config.ClickhouseHost)
 	if err != nil {
-		logger.Fatal("error connecting to clickhouse",
+		logger.Error("error connecting to clickhouse",
 			zap.Duration("runtime", time.Since(t0)),
 			zap.Int("http_code", http.StatusInternalServerError),
 			zap.Error(err),
@@ -497,7 +533,300 @@ func getHandler(w http.ResponseWriter, req *http.Request) {
 
 	idQuery := strconv.FormatUint(rootElementId, 10)
 
-	rows, err := connect.Query("SELECT total FROM flamegraph WHERE timestamp=" + ts + " AND id = " + idQuery + " AND cluster='" + cluster + "'")
+	query := "select groupUniqArray(cluster) from flamegraph where id = " + idQuery
+
+	var resp []string
+	rows, err := connect.Query(query)
+	if err != nil {
+		logger.Error("Error during database query",
+			zap.Duration("runtime", time.Since(t0)),
+			zap.Int("http_code", http.StatusInternalServerError),
+			zap.Error(err),
+		)
+		http.Error(w, "Error fetching data",
+			http.StatusInternalServerError)
+		return
+	}
+	for rows.Next() {
+		var v []string
+		err = rows.Scan(&v)
+		if err != nil {
+			logger.Error("Error retreiving clusters",
+				zap.Duration("runtime", time.Since(t0)),
+				zap.Int("http_code", http.StatusInternalServerError),
+				zap.Error(err),
+			)
+			http.Error(w, "Error fetching data",
+				http.StatusInternalServerError)
+			return
+		}
+		resp = append(resp, v...)
+	}
+
+	b, err := json.Marshal(resp)
+	if err != nil {
+		logger.Error("Error marshaling data",
+			zap.Duration("runtime", time.Since(t0)),
+			zap.Int("http_code", http.StatusInternalServerError),
+			zap.Error(err),
+		)
+		http.Error(w, "Error marshaling data",
+			http.StatusInternalServerError)
+		return
+	}
+	config.queryCache.set(cacheKey, b, int32(config.RerunInterval.Seconds()))
+	w.Write(b)
+
+	logger.Info("request served",
+		zap.Duration("runtime", time.Since(t0)),
+		zap.Int("http_code", http.StatusOK),
+	)
+}
+
+// Handler for the request /get?cluster=cluster
+func timeHandler(w http.ResponseWriter, req *http.Request) {
+	t0 := time.Now()
+	logger := logger.With(zap.String("handler", "time"))
+	// TODO: Add validation
+	cluster := req.FormValue("cluster")
+	if cluster == "" {
+		logger.Error("You must specify cluster and ts",
+			zap.Duration("runtime", time.Since(t0)),
+			zap.Int("http_code", http.StatusBadRequest),
+		)
+		http.Error(w, "Error fetching data",
+			http.StatusBadRequest)
+		return
+	}
+
+	cacheKey := "time&" + "&" + cluster
+
+	logger = logger.With(
+		zap.String("cluster", cluster),
+	)
+
+	if response, ok := config.queryCache.get(cacheKey); ok {
+		logger.Info("request served",
+			zap.Duration("runtime", time.Since(t0)),
+			zap.Int("http_code", http.StatusOK),
+		)
+		w.Write(response)
+		return
+	}
+
+	lastStr := req.FormValue("last")
+	last := false
+	var err error
+	if lastStr != "" {
+		last, err = strconv.ParseBool(lastStr)
+		if err != nil {
+			logger.Error("Last must be true or false",
+				zap.String("value", lastStr),
+				zap.Duration("runtime", time.Since(t0)),
+				zap.Int("http_code", http.StatusBadRequest),
+			)
+			http.Error(w, "Error fetching data",
+				http.StatusBadRequest)
+			return
+		}
+	}
+
+	connect, err := sql.Open("clickhouse", config.ClickhouseHost)
+	if err != nil {
+		logger.Error("error connecting to clickhouse",
+			zap.Duration("runtime", time.Since(t0)),
+			zap.Int("http_code", http.StatusInternalServerError),
+			zap.Error(err),
+		)
+		http.Error(w, "Error fetching data",
+			http.StatusInternalServerError)
+		return
+	}
+
+	if err := connect.Ping(); err != nil {
+		if exception, ok := err.(*clickhouse.Exception); ok {
+			logger.Error("exception while pinging clickhouse",
+				zap.Duration("runtime", time.Since(t0)),
+				zap.Int("http_code", http.StatusInternalServerError),
+				zap.Int32("code", exception.Code),
+				zap.String("message", exception.Message),
+				zap.Any("stacktrace", exception.StackTrace),
+			)
+		} else {
+			logger.Error("error pinging clickhouse",
+				zap.Duration("runtime", time.Since(t0)),
+				zap.Int("http_code", http.StatusInternalServerError),
+				zap.Error(err),
+			)
+		}
+
+		http.Error(w, "Error fetching data",
+			http.StatusInternalServerError)
+		return
+	}
+
+	defer connect.Close()
+
+	idQuery := strconv.FormatUint(rootElementId, 10)
+
+	query := "select timestamp from flamegraph where id = " + idQuery + " and cluster='" + cluster + "' order by timestamp"
+	if last {
+		query = "select max(timestamp) from flamegraph where id = " + idQuery + " and cluster='" + cluster + "' group by id"
+	}
+
+	var resp []int64
+	rows, err := connect.Query(query)
+	if err != nil {
+		logger.Error("Error during database query",
+			zap.Duration("runtime", time.Since(t0)),
+			zap.Int("http_code", http.StatusInternalServerError),
+			zap.Error(err),
+		)
+		http.Error(w, "Error fetching data",
+			http.StatusInternalServerError)
+		return
+	}
+	for rows.Next() {
+		var v int64
+		err = rows.Scan(&v)
+		if err != nil {
+			logger.Error("Error retreiving timestamps",
+				zap.Duration("runtime", time.Since(t0)),
+				zap.Int("http_code", http.StatusInternalServerError),
+				zap.Error(err),
+			)
+			http.Error(w, "Error fetching data",
+				http.StatusInternalServerError)
+			return
+		}
+		resp = append(resp, v)
+	}
+
+	b, err := json.Marshal(struct{
+		Cluster string
+		Last bool
+		Timestamps []int64
+	}{
+		Cluster: cluster,
+		Last: last,
+		Timestamps: resp,
+	})
+	if err != nil {
+		logger.Error("Error marshaling data",
+			zap.Duration("runtime", time.Since(t0)),
+			zap.Int("http_code", http.StatusInternalServerError),
+			zap.Error(err),
+		)
+		http.Error(w, "Error fetching data",
+			http.StatusInternalServerError)
+		return
+	}
+	config.queryCache.set(cacheKey, b, int32(config.RerunInterval.Seconds()))
+	w.Write(b)
+
+	logger.Info("request served",
+		zap.Duration("runtime", time.Since(t0)),
+		zap.Int("http_code", http.StatusOK),
+	)
+}
+
+// Handler for the request /get?cluster=cluster&ts=timestamp
+func getHandler(w http.ResponseWriter, req *http.Request) {
+	t0 := time.Now()
+	logger := logger.With(zap.String("handler", "get"))
+	// TODO: Add validation
+	ts := req.FormValue("ts")
+	cluster := req.FormValue("cluster")
+	if ts == "" || cluster == "" {
+		logger.Error("You must specify cluster and ts",
+			zap.Duration("runtime", time.Since(t0)),
+			zap.Int("http_code", http.StatusBadRequest),
+		)
+		http.Error(w, "Error fetching data",
+			http.StatusBadRequest)
+		return
+	}
+
+	cacheKey := "get&" + ts + "&" + cluster
+
+	logger = logger.With(
+		zap.String("cluster", cluster),
+		zap.String("timestamp", ts),
+	)
+
+	if response, ok := config.queryCache.get(cacheKey); ok {
+		logger.Info("request served",
+			zap.Duration("runtime", time.Since(t0)),
+			zap.Int("http_code", http.StatusOK),
+		)
+		w.Write(response)
+		return
+	}
+
+	connect, err := sql.Open("clickhouse", config.ClickhouseHost)
+	if err != nil {
+		logger.Error("error connecting to clickhouse",
+			zap.Duration("runtime", time.Since(t0)),
+			zap.Int("http_code", http.StatusInternalServerError),
+			zap.Error(err),
+		)
+		http.Error(w, "Error fetching data",
+			http.StatusInternalServerError)
+		return
+	}
+
+	if err := connect.Ping(); err != nil {
+		if exception, ok := err.(*clickhouse.Exception); ok {
+			logger.Error("exception while pinging clickhouse",
+				zap.Duration("runtime", time.Since(t0)),
+				zap.Int("http_code", http.StatusInternalServerError),
+				zap.Int32("code", exception.Code),
+				zap.String("message", exception.Message),
+				zap.Any("stacktrace", exception.StackTrace),
+			)
+		} else {
+			logger.Error("error pinging clickhouse",
+				zap.Duration("runtime", time.Since(t0)),
+				zap.Int("http_code", http.StatusInternalServerError),
+				zap.Error(err),
+			)
+		}
+
+		http.Error(w, "Error fetching data",
+			http.StatusInternalServerError)
+		return
+	}
+
+	defer connect.Close()
+
+	idQuery := strconv.FormatUint(rootElementId, 10)
+
+	tsInt, err := strconv.ParseInt(ts, 10, 64)
+	if err != nil {
+		logger.Error("Error parsing ts",
+			zap.Duration("runtime", time.Since(t0)),
+			zap.Int("http_code", http.StatusBadRequest),
+		)
+		http.Error(w, "Error fetching data",
+			http.StatusBadRequest)
+		return
+	}
+	t := time.Unix(tsInt, 0)
+	date := t.Format("2006-01-02")
+
+	where := " timestamp=" + ts + " AND cluster='" + cluster + "' AND date='" + date + "'"
+
+	rows, err := connect.Query("SELECT total FROM flamegraph WHERE" + where + " AND id = " + idQuery)
+	if err != nil {
+		logger.Error("Error during database query",
+			zap.Duration("runtime", time.Since(t0)),
+			zap.Int("http_code", http.StatusInternalServerError),
+			zap.Error(err),
+		)
+		http.Error(w, "Error fetching data",
+			http.StatusInternalServerError)
+		return
+	}
 	total := uint64(0)
 	for rows.Next() {
 		err = rows.Scan(&total)
@@ -516,7 +845,17 @@ func getHandler(w http.ResponseWriter, req *http.Request) {
 	minValue := uint64(float64(total) * removeLowest)
 	minValueQuery := strconv.FormatUint(minValue, 10)
 
-	rows, err = connect.Query("SELECT timestamp, graph_type, cluster, id, name, total, value, children_ids FROM flamegraph WHERE timestamp=" + ts + " AND cluster='" + cluster + "' AND value > " + minValueQuery)
+	rows, err = connect.Query("SELECT timestamp, graph_type, cluster, id, name, total, value, children_ids FROM flamegraph WHERE" + where + " AND value > " + minValueQuery)
+	if err != nil {
+		logger.Error("Error during database query",
+			zap.Duration("runtime", time.Since(t0)),
+			zap.Int("http_code", http.StatusInternalServerError),
+			zap.Error(err),
+		)
+		http.Error(w, "Error fetching data",
+			http.StatusInternalServerError)
+		return
+	}
 	if err != nil {
 		logger.Error("Error getting data",
 			zap.Duration("runtime", time.Since(t0)),
@@ -559,7 +898,7 @@ func getHandler(w http.ResponseWriter, req *http.Request) {
 
 	b, err := json.Marshal(flameGraphTreeRoot)
 	if err != nil {
-		logger.Error("Error getting data",
+		logger.Error("Error marshaling data",
 			zap.Duration("runtime", time.Since(t0)),
 			zap.Int("http_code", http.StatusInternalServerError),
 			zap.Error(err),
@@ -568,6 +907,8 @@ func getHandler(w http.ResponseWriter, req *http.Request) {
 			http.StatusInternalServerError)
 		return
 	}
+
+	config.queryCache.set(cacheKey, b, config.CacheTimeoutSeconds)
 	w.Write(b)
 
 	logger.Info("request served",
@@ -607,7 +948,8 @@ func main() {
 		logger.Fatal("Neither clickhouse no file writer enabled")
 	}
 
-	FetchesPerClusterMax = config.FetchPerCluster
+	config.queryCache = expireCache{ec: ecache.New(config.CacheSize)}
+	go config.queryCache.ec.ApproximateCleaner(10 * time.Second)
 
 	logger.Info("Started",
 		zap.Int("clusters", len(config.Clusters)),
@@ -631,6 +973,11 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/get", getHandler)
+	mux.HandleFunc("/get/", getHandler)
+	mux.HandleFunc("/time", timeHandler)
+	mux.HandleFunc("/time/", timeHandler)
+	mux.HandleFunc("/clusters", clustersHandler)
+	mux.HandleFunc("/clusters/", clustersHandler)
 
 	go processData(removeLowest)
 
