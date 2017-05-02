@@ -1,0 +1,98 @@
+CREATE TABLE flamegraph_clusters_local
+(
+    graph_type String,
+    cluster String,
+    date Date,
+    version UInt64 DEFAULT CAST(0 AS UInt64)
+) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{cluster}-{shard}/flamegraph_clusters_local', '{host}', date, (graph_type, cluster, date), 8192, version);
+CREATE TABLE flamegraph_clusters
+(
+    graph_type String,
+    cluster String,
+    date Date,
+    version UInt64 DEFAULT CAST(0 AS UInt64)
+) ENGINE = Distributed(flamegraph, 'default', 'flamegraph_clusters_local', sipHash64(cluster));
+CREATE TABLE flamegraph_local
+(
+    timestamp Int64,
+    graph_type String,
+    cluster String,
+    id UInt64,
+    name String,
+    total UInt64,
+    value UInt64,
+    parent_id UInt64,
+    children_ids Array(UInt64),
+    level UInt64,
+    date Date,
+    mtime Int64,
+    version UInt64 DEFAULT CAST(0 AS UInt64)
+) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{cluster}-{shard}/flamegraph_local', '{host}', date, (timestamp, graph_type, cluster, id, parent_id, date, level, value, name), 8192);
+CREATE TABLE flamegraph
+(
+    timestamp Int64,
+    graph_type String,
+    cluster String,
+    id UInt64,
+    name String,
+    total UInt64,
+    value UInt64,
+    parent_id UInt64,
+    children_ids Array(UInt64),
+    level UInt64,
+    date Date,
+    mtime Int64,
+    version UInt64 DEFAULT CAST(0 AS UInt64)
+) ENGINE = Distributed(flamegraph, 'default', 'flamegraph_local', sipHash64(name));
+CREATE TABLE flamegraph_table_version_local
+(
+    schema_version UInt64,
+    date Date,
+    version UInt64
+) ENGINE = ReplacingMergeTree(date, (schema_version, date), 8192, version);
+INSERT INTO flamegraph_table_version_local (schema_version, date, version) VALUES (1, '1970-02-01', 1);
+CREATE TABLE flamegraph_timestamps_local
+(
+    graph_type String,
+    cluster String,
+    timestamp Int64,
+    date Date,
+    version UInt64 DEFAULT CAST(0 AS UInt64)
+) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{cluster}-{shard}/flamegraph_timestamps_local', '{host}', date, (graph_type, cluster, timestamp, date), 8192);
+CREATE TABLE flamegraph_timestamps
+(
+    graph_type String,
+    cluster String,
+    timestamp Int64,
+    date Date,
+    version UInt64 DEFAULT CAST(0 AS UInt64)
+) ENGINE = Distributed(flamegraph, 'default', 'flamegraph_timestamps_local', timestamp);
+
+CREATE TABLE metricstats_local
+(
+    timestamp Int64,
+    graph_type String,
+    cluster String,
+    id UInt64,
+    name String,
+    mtime Int64,
+    atime Int64,
+    rdtime Int64,
+    count Int64,
+    date Date,
+    version UInt64 DEFAULT CAST(0 AS UInt64)
+) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{cluster}-{shard}/metricstats_local', '{host}', date, (timestamp, graph_type, cluster, mtime, atime, rdtime, id, name, date), 8192);
+CREATE TABLE metricstats
+(
+    timestamp Int64,
+    graph_type String,
+    cluster String,
+    id UInt64,
+    name String,
+    mtime Int64,
+    atime Int64,
+    rdtime Int64,
+    count Int64,
+    date Date,
+    version UInt64 DEFAULT CAST(0 AS UInt64)
+) ENGINE = Distributed(flamegraph, 'default', 'metricstats_local', sipHash64(name));

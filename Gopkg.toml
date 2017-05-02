@@ -1,0 +1,12 @@
+
+[[dependencies]]
+  branch = "master"
+  name = "github.com/dgryski/go-expirecache"
+
+[[dependencies]]
+  branch = "master"
+  name = "github.com/kshvakov/clickhouse"
+
+[[dependencies]]
+  branch = "master"
+  name = "go.uber.org/zap"
