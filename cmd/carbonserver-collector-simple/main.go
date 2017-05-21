@@ -18,7 +18,7 @@ import (
 	"database/sql"
 
 	"github.com/Civil/carbonserver-flamegraphs/helper"
-	"github.com/Civil/carbonserver-flamegraphs/internal"
+	"github.com/Civil/carbonserver-flamegraphs/types"
 	ecache "github.com/dgryski/go-expirecache"
 	pb "github.com/go-graphite/carbonzipper/carbonzipperpb3"
 	"github.com/kshvakov/clickhouse"
@@ -26,11 +26,11 @@ import (
 
 var logger *zap.Logger
 
-func constructTree(root *internal.FlameGraphNode, details *pb.MetricDetailsResponse) {
-	cnt := internal.RootElementId + 2
+func constructTree(root *types.FlameGraphNode, details *pb.MetricDetailsResponse) {
+	cnt := types.RootElementId + 2
 	total := details.TotalSpace
 	occupiedByMetrics := uint64(0)
-	seen := make(map[string]*internal.FlameGraphNode)
+	seen := make(map[string]*types.FlameGraphNode)
 	var seenSoFar string
 	var seenSoFarPrev string
 
@@ -58,7 +58,7 @@ func constructTree(root *internal.FlameGraphNode, details *pb.MetricDetailsRespo
 					n.ATime = data.ATime
 				}
 			} else {
-				var parent *internal.FlameGraphNode
+				var parent *types.FlameGraphNode
 				if seenSoFarPrev != "" {
 					parent = seen[seenSoFarPrev]
 				} else {
@@ -70,7 +70,7 @@ func constructTree(root *internal.FlameGraphNode, details *pb.MetricDetailsRespo
 					v = uint64(data.Size_)
 				}
 
-				m := &internal.FlameGraphNode{
+				m := &types.FlameGraphNode{
 					Id:      cnt,
 					Cluster: parent.Cluster,
 					Name:    seenSoFar,
@@ -91,7 +91,7 @@ func constructTree(root *internal.FlameGraphNode, details *pb.MetricDetailsRespo
 
 	if occupiedByMetrics+details.FreeSpace < total {
 		occupiedByRest := total - occupiedByMetrics - details.FreeSpace
-		m := &internal.FlameGraphNode{
+		m := &types.FlameGraphNode{
 			Id:      cnt,
 			Cluster: root.Cluster,
 			Name:    "[disk].[not-whisper]",
@@ -206,7 +206,7 @@ func sendMetricsStatsToClickhouse(stats *pb.MetricDetailsResponse, t int64, clus
 	)
 }
 
-func convertAndSendToClickhouse(sender *helper.ClickhouseSender, node *internal.FlameGraphNode, level uint64) error {
+func convertAndSendToClickhouse(sender *helper.ClickhouseSender, node *types.FlameGraphNode, level uint64) error {
 	parentID := uint64(0)
 	if node.Parent != nil {
 		parentID = node.Parent.Id
@@ -225,7 +225,7 @@ func convertAndSendToClickhouse(sender *helper.ClickhouseSender, node *internal.
 	return nil
 }
 
-func sendToClickhouse(node *internal.FlameGraphNode, t int64) {
+func sendToClickhouse(node *types.FlameGraphNode, t int64) {
 	logger := logger.With(
 		zap.String("cluster", node.Cluster),
 	)
@@ -364,8 +364,8 @@ func parseTree(t int64) {
 		sendMetricsStatsToClickhouse(details, t, config.Cluster)
 	}
 
-	flameGraphTreeRoot := &internal.FlameGraphNode{
-		Id:      internal.RootElementId,
+	flameGraphTreeRoot := &types.FlameGraphNode{
+		Id:      types.RootElementId,
 		Cluster: config.Cluster,
 		Name:    "[disk]",
 		Value:   0,
@@ -373,8 +373,8 @@ func parseTree(t int64) {
 		Parent:  nil,
 	}
 
-	freeSpaceNode := &internal.FlameGraphNode{
-		Id:      internal.RootElementId + 1,
+	freeSpaceNode := &types.FlameGraphNode{
+		Id:      types.RootElementId + 1,
 		Cluster: config.Cluster,
 		Name:    "[disk].[free]",
 		Value:   details.FreeSpace,
@@ -382,7 +382,7 @@ func parseTree(t int64) {
 		Parent:  flameGraphTreeRoot,
 	}
 
-	flameGraphTreeRoot.ChildrenIds = append(flameGraphTreeRoot.ChildrenIds, internal.RootElementId+1)
+	flameGraphTreeRoot.ChildrenIds = append(flameGraphTreeRoot.ChildrenIds, types.RootElementId+1)
 	flameGraphTreeRoot.Children = append(flameGraphTreeRoot.Children, freeSpaceNode)
 
 	constructTree(flameGraphTreeRoot, details)

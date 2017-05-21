@@ -21,7 +21,7 @@ import (
 	"database/sql"
 
 	"github.com/Civil/carbonserver-flamegraphs/helper"
-	"github.com/Civil/carbonserver-flamegraphs/internal"
+	"github.com/Civil/carbonserver-flamegraphs/types"
 	ecache "github.com/dgryski/go-expirecache"
 	pb "github.com/go-graphite/carbonzipper/carbonzipperpb3"
 	"github.com/kshvakov/clickhouse"
@@ -42,11 +42,11 @@ func newLimiter(l int) limiter {
 
 // End of copy from carbonapi
 
-func constructTree(root *internal.FlameGraphNode, details *pb.MetricDetailsResponse) {
-	cnt := internal.RootElementId + 2
+func constructTree(root *types.FlameGraphNode, details *pb.MetricDetailsResponse) {
+	cnt := types.RootElementId + 2
 	total := details.TotalSpace
 	occupiedByMetrics := uint64(0)
-	seen := make(map[string]*internal.FlameGraphNode)
+	seen := make(map[string]*types.FlameGraphNode)
 	var seenSoFar string
 	var seenSoFarPrev string
 
@@ -74,7 +74,7 @@ func constructTree(root *internal.FlameGraphNode, details *pb.MetricDetailsRespo
 					n.RdTime = data.RdTime
 				}
 			} else {
-				var parent *internal.FlameGraphNode
+				var parent *types.FlameGraphNode
 				if seenSoFarPrev != "" {
 					parent = seen[seenSoFarPrev]
 				} else {
@@ -86,7 +86,7 @@ func constructTree(root *internal.FlameGraphNode, details *pb.MetricDetailsRespo
 					v = uint64(data.Size_)
 				}
 
-				m := &internal.FlameGraphNode{
+				m := &types.FlameGraphNode{
 					Id:      cnt,
 					Cluster: parent.Cluster,
 					Name:    part,
@@ -107,7 +107,7 @@ func constructTree(root *internal.FlameGraphNode, details *pb.MetricDetailsRespo
 
 	if occupiedByMetrics+details.FreeSpace < total {
 		occupiedByRest := total - occupiedByMetrics - details.FreeSpace
-		m := &internal.FlameGraphNode{
+		m := &types.FlameGraphNode{
 			Id:      cnt,
 			Cluster: root.Cluster,
 			Name:    "[not-whisper]",
@@ -157,7 +157,7 @@ func updateKnownClusters(clusters []string) error {
 	return nil
 }
 
-func updateTimestamps(clusters []internal.Cluster, t int64) error {
+func updateTimestamps(clusters []types.Cluster, t int64) error {
 	logger.Info("Sending timestamps to clickhouse")
 	now := time.Now()
 
@@ -226,7 +226,7 @@ func sendMetricsStatsToClickhouse(stats *pb.MetricDetailsResponse, t int64, clus
 	)
 }
 
-func convertAndSendToClickhouse(sender *helper.ClickhouseSender, node *internal.FlameGraphNode, level uint64) error {
+func convertAndSendToClickhouse(sender *helper.ClickhouseSender, node *types.FlameGraphNode, level uint64) error {
 	parentID := uint64(0)
 	if node.Parent != nil {
 		parentID = node.Parent.Id
@@ -245,7 +245,7 @@ func convertAndSendToClickhouse(sender *helper.ClickhouseSender, node *internal.
 	return nil
 }
 
-func sendToClickhouse(node *internal.FlameGraphNode, t int64) {
+func sendToClickhouse(node *types.FlameGraphNode, t int64) {
 	logger := logger.With(
 		zap.String("cluster", node.Cluster),
 	)
@@ -410,7 +410,7 @@ func getDetails(ips []string, cluster string) *pb.MetricDetailsResponse {
 	return response
 }
 
-func parseTree(cluster *internal.Cluster, t int64) {
+func parseTree(cluster *types.Cluster, t int64) {
 	t0 := time.Now()
 	defer func() {
 		if r := recover(); r != nil {
@@ -443,8 +443,8 @@ func parseTree(cluster *internal.Cluster, t int64) {
 		sendMetricsStatsToClickhouse(details, t, cluster.Name)
 	}
 
-	flameGraphTreeRoot := &internal.FlameGraphNode{
-		Id:      internal.RootElementId,
+	flameGraphTreeRoot := &types.FlameGraphNode{
+		Id:      types.RootElementId,
 		Cluster: cluster.Name,
 		Name:    "[disk]",
 		Value:   0,
@@ -452,8 +452,8 @@ func parseTree(cluster *internal.Cluster, t int64) {
 		Parent:  nil,
 	}
 
-	freeSpaceNode := &internal.FlameGraphNode{
-		Id:      internal.RootElementId + 1,
+	freeSpaceNode := &types.FlameGraphNode{
+		Id:      types.RootElementId + 1,
 		Cluster: cluster.Name,
 		Name:    "[free]",
 		Value:   details.FreeSpace,
@@ -461,7 +461,7 @@ func parseTree(cluster *internal.Cluster, t int64) {
 		Parent:  flameGraphTreeRoot,
 	}
 
-	flameGraphTreeRoot.ChildrenIds = append(flameGraphTreeRoot.ChildrenIds, internal.RootElementId+1)
+	flameGraphTreeRoot.ChildrenIds = append(flameGraphTreeRoot.ChildrenIds, types.RootElementId+1)
 	flameGraphTreeRoot.Children = append(flameGraphTreeRoot.Children, freeSpaceNode)
 
 	constructTree(flameGraphTreeRoot, details)
@@ -566,7 +566,7 @@ var config = struct {
 	FetchPerCluster     int
 	RemoveLowestPct     float64
 	RerunInterval       time.Duration
-	Clusters            []internal.Cluster
+	Clusters            []types.Cluster
 	DryRun              bool
 	ClickhouseHost      string
 	Listen              string
