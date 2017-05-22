@@ -707,7 +707,6 @@ func getStackHandler(w http.ResponseWriter, req *http.Request) {
 	ts := req.FormValue("ts")
 	application := req.FormValue("application")
 	instance := req.FormValue("instance")
-	samples := req.FormValue("samples")
 	if ts == "" || application == "" {
 		logger.Error("You must specify cluster and ts",
 			zap.Duration("runtime", time.Since(t0)),
@@ -715,6 +714,10 @@ func getStackHandler(w http.ResponseWriter, req *http.Request) {
 		)
 		http.Error(w, "Error parsing 'ts' or 'cluster'", http.StatusBadRequest)
 		return
+	}
+	samples := req.FormValue("samples")
+	if samples == "" {
+		samples = "1"
 	}
 
 	tsInt, err := strconv.ParseInt(ts, 10, 64)
@@ -741,6 +744,10 @@ func getStackHandler(w http.ResponseWriter, req *http.Request) {
 
 	t := time.Unix(tsInt, 0)
 	date := t.Format("2006-01-02")
+	logger.Info("debug",
+		zap.String("date", date),
+		zap.Time("ts", t),
+	)
 
 	cacheKey := ""
 	if tsInt != 0 {
@@ -785,10 +792,11 @@ func getStackHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	where := " AND Application='" + application + "' AND Date='" + date + "'"
+	// where := " AND Application='" + application + "'"
 	if tsInt == 0 {
-		where = " Timestamp IN ( SELECT Timestamp from stacktraceTimestamps where Application='" + application + "' order by Timestamp desc limit " + samples + ") "
+		where = " Timestamp IN ( SELECT Timestamp from stacktraceTimestamps where Application='" + application + "' order by Timestamp desc limit " + samples + ") " + where
 	} else {
-		where = " Timestamp <= " + ts + where + " order by Timestamp desc limit " + samples
+		where = " Timestamp IN ( SELECT Timestamp from stacktraceTimestamps where Application='" + application + "' and Timestamp <= " + ts + " order by Timestamp desc limit " + samples + ") " + where + " order by Timestamp desc"
 	}
 	// TODO: Add validation
 	if instance != "" {
