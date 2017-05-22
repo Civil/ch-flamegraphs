@@ -744,6 +744,10 @@ func getStackHandler(w http.ResponseWriter, req *http.Request) {
 
 	t := time.Unix(tsInt, 0)
 	date := t.Format("2006-01-02")
+	if tsInt == 0 {
+		date = time.Now().Format("2006-01-02")
+	}
+
 	logger.Info("debug",
 		zap.String("date", date),
 		zap.Time("ts", t),

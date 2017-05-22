@@ -28,7 +28,7 @@ var defaultLoggerConfig = zapwriter.Config{
 	Logger:           "",
 	File:             "stderr",
 	Level:            "info",
-	Encoding:         "console",
+	Encoding:         "json",
 	EncodingTime:     "iso8601",
 	EncodingDuration: "seconds",
 }
