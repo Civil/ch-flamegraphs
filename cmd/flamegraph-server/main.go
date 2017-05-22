@@ -728,6 +728,7 @@ func getStackHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	/*
 	samplesInt := int64(1)
 	samplesInt, err = strconv.ParseInt(samples, 10, 64)
 	if err != nil {
@@ -736,6 +737,7 @@ func getStackHandler(w http.ResponseWriter, req *http.Request) {
 			zap.Int("http_code", http.StatusBadRequest),
 		)
 	}
+	*/
 
 	t := time.Unix(tsInt, 0)
 	date := t.Format("2006-01-02")
