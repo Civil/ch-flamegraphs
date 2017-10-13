@@ -11,8 +11,6 @@ import (
 	"os"
 	"time"
 
-	"database/sql"
-
 	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
@@ -21,26 +19,34 @@ import (
 	"github.com/Civil/carbonserver-flamegraphs/types"
 
 	"github.com/NYTimes/gziphandler"
-	"github.com/kshvakov/clickhouse"
+
+	"github.com/jmoiron/sqlx"
+	_ "github.com/kshvakov/clickhouse"
 )
 
 var defaultLoggerConfig = zapwriter.Config{
 	Logger:           "",
 	File:             "stderr",
-	Level:            "info",
+	Level:            "debug",
 	Encoding:         "json",
 	EncodingTime:     "iso8601",
 	EncodingDuration: "seconds",
 }
 
-func clickhouseSender(sender *helper.ClickhouseSender, node *types.StackFlameGraphNode, now int64) error {
-	err := sender.SendStacktrace(node)
+func clickhouseSender(sender *helper.ClickhouseSender, node *types.StackFlameGraphNode, fullName string, now int64) error {
+	var name string
+	if len(fullName) > 0 {
+		name = fullName + types.FieldSeparator + node.FunctionName
+	} else {
+		name = node.FunctionName
+	}
+	err := sender.SendStacktrace(node, name)
 	if err != nil {
 		return err
 	}
 
 	for _, c := range node.Children {
-		err = clickhouseSender(sender, c, now)
+		err = clickhouseSender(sender, c, name, now)
 		if err != nil {
 			return err
 		}
@@ -57,6 +63,7 @@ func clickhouseSender(sender *helper.ClickhouseSender, node *types.StackFlameGra
 	Line         int64 `json:"line"`
 	Samples      int64 `json:"samples"`
 	MaxSamples   int64         `json:"maxSamples"`
+	FullName    string `json:"-"`,
 	Children    []*StackFlameGraphNode `json:"children,omitempty"`
 	ChildrenIds []int64 `json:"-"`
 	Parent      *StackFlameGraphNode `json:"-"`
@@ -78,10 +85,14 @@ func writer(data <-chan []byte, exit <-chan struct{}) {
 				)
 				continue
 			}
+			if v.Samples == 0 {
+				logger.Warn("empty trace, skipping")
+				continue
+			}
 			now := time.Now().Unix()
 			sender, err := helper.NewClickhouseSender(
 				config.db,
-				"INSERT INTO stacktrace (Timestamp, ID, Application, Instance, FunctionName, FileName, Line, Samples, MaxSamples, ChildrenIDs, ParentID, Date, Version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				"INSERT INTO stacktrace (Timestamp, ID, Application, Instance, FunctionName, FileName, Line, Samples, MaxSamples, FullName, IsRoot, ChildrenIDs, ParentID, Date, Version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 				now,
 				1000000)
 			if err != nil {
@@ -90,9 +101,9 @@ func writer(data <-chan []byte, exit <-chan struct{}) {
 				)
 				continue
 			}
-			err = clickhouseSender(sender, &v, now)
+			err = clickhouseSender(sender, &v, "", now)
 			if err != nil {
-				logger.Error("failed to send data in database",
+				logger.Error("failed to send data to database",
 					zap.Error(err),
 				)
 				continue
@@ -159,7 +170,7 @@ var config = struct {
 	Listen string
 
 	logger    *zap.Logger
-	db        *sql.DB
+	db        *sqlx.DB
 	writeChan chan []byte
 	exitChan  chan struct{}
 }{
@@ -190,6 +201,8 @@ func createStackTraceTable(tablePostfix, engine string) error {
 			Line Int64,
 			Samples Int64,
 			MaxSamples Int64,
+			FullName String,
+			IsRoot UInt8,
 			ChildrenIDs Array(Int64),
 			ParentID UInt64,
 			Date Date,
@@ -224,7 +237,7 @@ func createLocalTables(tablePostfix string) error {
 		return err
 	}
 
-	err = createStackTraceTable(tablePostfix, "MergeTree(Date, (Timestamp, Application, Instance, FunctionName, FileName, Line, Samples, ChildrenIDs, ParentID), 8192)")
+	err = createStackTraceTable(tablePostfix, "MergeTree(Date, (Timestamp, Application, Instance, FunctionName, FileName, Line, Samples, FullName, IsRoot, ChildrenIDs, ParentID), 8192)")
 	if err != nil {
 		return err
 	}
@@ -358,22 +371,11 @@ func main() {
 	}
 	config.logger = zapwriter.Logger("StackTraceReceiver")
 
-	config.db, err = sql.Open("clickhouse", config.ClickhouseHost)
+	config.db, err = sqlx.Open("clickhouse", config.ClickhouseHost)
 	if err != nil {
 		logger.Fatal("error connecting to clickhouse",
 			zap.Error(err),
 		)
-	}
-
-	if err = config.db.Ping(); err != nil {
-		if exception, ok := err.(*clickhouse.Exception); ok {
-			logger.Fatal("exception while pinging clickhouse",
-				zap.Int32("code", exception.Code),
-				zap.String("message", exception.Message),
-				zap.Any("stacktrace", exception.StackTrace),
-			)
-		}
-		logger.Fatal("error pinging clickhouse", zap.Error(err))
 	}
 
 	migrateOrCreateTables()

@@ -1,9 +1,9 @@
 package helper
 
 import (
-	"database/sql"
 	"time"
 
+	"database/sql"
 	_ "github.com/kshvakov/clickhouse"
 
 	"github.com/Civil/carbonserver-flamegraphs/types"
@@ -95,9 +95,10 @@ func (c *ClickhouseSender) SendStacktraceTimestamp(data *types.StackFlameGraphNo
 	return err
 }
 
-func (c *ClickhouseSender) SendStacktrace(data *types.StackFlameGraphNode) error {
+func (c *ClickhouseSender) SendStacktrace(data *types.StackFlameGraphNode, fullName string) error {
 	c.lines++
-	parentID := int64(0)
+
+	parentID := uint64(0)
 	if data.Parent != nil {
 		parentID = data.Parent.Id
 	}
@@ -111,6 +112,8 @@ func (c *ClickhouseSender) SendStacktrace(data *types.StackFlameGraphNode) error
 		data.Line,
 		data.Samples,
 		data.MaxSamples,
+		data.FullName,
+		data.IsRoot,
 		clickhouse.Array(data.ChildrenIds),
 		parentID,
 		c.now,
@@ -139,6 +142,7 @@ func (c *ClickhouseSender) SendStacktrace(data *types.StackFlameGraphNode) error
 
 func (c *ClickhouseSender) SendFg(cluster, name string, id uint64, mtime int64, total, value, parentID uint64, childrenIds []uint64, level uint64) error {
 	c.lines++
+
 	_, err := c.stmt.Exec(
 		c.version,
 		"graphite_metrics",
@@ -152,7 +156,7 @@ func (c *ClickhouseSender) SendFg(cluster, name string, id uint64, mtime int64, 
 		level,
 		mtime,
 		c.now,
-		c.version,
+		uint64(c.version),
 	)
 	if err != nil {
 		return err

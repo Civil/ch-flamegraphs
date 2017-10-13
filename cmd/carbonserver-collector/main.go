@@ -44,7 +44,7 @@ func newLimiter(l int) limiter {
 
 func constructTree(root *types.FlameGraphNode, details *pb.MetricDetailsResponse) {
 	cnt := types.RootElementId + 2
-	total := details.TotalSpace
+	total := uint64(details.TotalSpace)
 	occupiedByMetrics := uint64(0)
 	seen := make(map[string]*types.FlameGraphNode)
 	var seenSoFar string
@@ -133,7 +133,7 @@ func updateKnownClusters(clusters []string) error {
 	clusterDate := time.Unix(1, 0)
 	version := uint64(time.Now().Unix())
 
-	tx, stmt, err := helper.DBStartTransaction(config.db, "INSERT INTO flamegraph_clusters (graph_type, cluster, date, version) VALUES (?, ?, ?, ?)")
+	tx, stmt, err := helper.DBStartTransaction(config.db, "INSERT INTO new_flamegraph_clusters (graph_type, cluster, date, version) VALUES (?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
@@ -161,7 +161,7 @@ func updateTimestamps(clusters []types.Cluster, t int64) error {
 	logger.Info("Sending timestamps to clickhouse")
 	now := time.Now()
 
-	tx, stmt, err := helper.DBStartTransaction(config.db, "INSERT INTO flamegraph_timestamps (graph_type, cluster, timestamp, date) VALUES (?, ?, ?, ?)")
+	tx, stmt, err := helper.DBStartTransaction(config.db, "INSERT INTO new_flamegraph_timestamps (graph_type, cluster, timestamp, date) VALUES (?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
@@ -193,7 +193,7 @@ func sendMetricsStatsToClickhouse(stats *pb.MetricDetailsResponse, t int64, clus
 		zap.String("cluster", cluster),
 	)
 
-	sender, err := helper.NewClickhouseSender(config.db, "INSERT INTO metricstats (timestamp, graph_type, cluster, id, name, mtime, atime, rdtime, count, date, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", t, config.RowsPerInsert)
+	sender, err := helper.NewClickhouseSender(config.db, "INSERT INTO new_metricstats (timestamp, graph_type, cluster, id, name, mtime, atime, rdtime, count, date, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", t, config.RowsPerInsert)
 	if err != nil {
 		logger.Error("failed to initialize sender",
 			zap.Error(err),
@@ -231,7 +231,7 @@ func convertAndSendToClickhouse(sender *helper.ClickhouseSender, node *types.Fla
 	if node.Parent != nil {
 		parentID = node.Parent.Id
 	}
-	err := sender.SendFg(node.Cluster, node.Name, node.Id, node.ModTime, node.Total, uint64(node.Value), parentID, node.ChildrenIds, level)
+	err := sender.SendFg(node.Cluster, node.Name, node.Id, node.ModTime, node.Total, node.Value, parentID, node.ChildrenIds, level)
 	if err != nil {
 		return err
 	}
@@ -262,14 +262,14 @@ func sendToClickhouse(node *types.FlameGraphNode, t int64) {
 	err = convertAndSendToClickhouse(sender, node, 0)
 
 	if err != nil {
-		logger.Error("failed to send data to ClickHouse",
+		logger.Fatal("failed to send data to ClickHouse",
 			zap.Error(err),
 		)
 		return
 	}
 	lines, err := sender.Commit()
 	if err != nil {
-		logger.Error("failed to send data to ClickHouse",
+		logger.Fatal("failed to commit data to ClickHouse",
 			zap.Error(err),
 		)
 		return
@@ -585,7 +585,7 @@ var config = struct {
 	ClustersInParallel:  2,
 	FetchPerCluster:     4,
 	RerunInterval:       10 * time.Minute,
-	DryRun:              true,
+	DryRun:              false,
 	ClickhouseHost:      "tcp://127.0.0.1:9000?debug=false",
 	Listen:              "[::]:8088",
 	CacheSize:           0,
@@ -602,7 +602,7 @@ func getClusters() ([]string, error) {
 		return nil, err
 	}
 
-	query := "select groupUniqArray(cluster) from flamegraph_clusters where graph_type='graphite_metrics'"
+	query := "select groupUniqArray(cluster) from new_flamegraph_clusters where graph_type='graphite_metrics'"
 
 	var resp []string
 	rows, err := config.db.Query(query)
@@ -628,7 +628,7 @@ const (
 
 // (graph_type, cluster, timestamp, date
 func createTimestampsTable(tablePostfix, engine string) error {
-	_, err := config.db.Exec("CREATE TABLE IF NOT EXISTS flamegraph_timestamps" + tablePostfix + ` (
+	_, err := config.db.Exec("CREATE TABLE IF NOT EXISTS new_flamegraph_timestamps" + tablePostfix + ` (
 			graph_type String,
 			cluster String,
 			timestamp Int64,
@@ -640,7 +640,7 @@ func createTimestampsTable(tablePostfix, engine string) error {
 }
 
 func createMetricStatsTable(tablePostfix, engine string) error {
-	_, err := config.db.Exec("CREATE TABLE IF NOT EXISTS metricstats" + tablePostfix + ` (
+	_, err := config.db.Exec("CREATE TABLE IF NOT EXISTS new_metricstats" + tablePostfix + ` (
 			timestamp Int64,
 			graph_type String,
 			cluster String,
@@ -658,7 +658,7 @@ func createMetricStatsTable(tablePostfix, engine string) error {
 }
 
 func createFlameGraphTable(tablePostfix, engine string) error {
-	_, err := config.db.Exec("CREATE TABLE IF NOT EXISTS flamegraph" + tablePostfix + ` (
+	_, err := config.db.Exec("CREATE TABLE IF NOT EXISTS new_flamegraph" + tablePostfix + ` (
 			timestamp Int64,
 			graph_type String,
 			cluster String,
@@ -678,7 +678,7 @@ func createFlameGraphTable(tablePostfix, engine string) error {
 }
 
 func createFlameGraphClusterTable(tablePostfix, engine string) error {
-	_, err := config.db.Exec("CREATE TABLE IF NOT EXISTS flamegraph_clusters" + tablePostfix + ` (
+	_, err := config.db.Exec("CREATE TABLE IF NOT EXISTS new_flamegraph_clusters" + tablePostfix + ` (
 			graph_type String,
 			cluster String,
 			date Date,
@@ -690,7 +690,7 @@ func createFlameGraphClusterTable(tablePostfix, engine string) error {
 
 func createLocalTables(tablePostfix string) error {
 	_, err := config.db.Exec(`
-		CREATE TABLE IF NOT EXISTS flamegraph_table_version_local (
+		CREATE TABLE IF NOT EXISTS new_flamegraph_table_version_local (
 			schema_version UInt64,
 			date Date,
 			version UInt64
@@ -721,22 +721,22 @@ func createLocalTables(tablePostfix string) error {
 }
 
 func createDistributedTables() error {
-	err := createTimestampsTable("", "Distributed(flamegraph, 'default', 'flamegraph_timestamps_local', timestamp)")
+	err := createTimestampsTable("", "Distributed(flamegraph, 'default', 'new_flamegraph_timestamps_local', timestamp)")
 	if err != nil {
 		return err
 	}
 
-	err = createMetricStatsTable("", "Distributed(flamegraph, 'default', 'metricstats_local', sipHash64(name))")
+	err = createMetricStatsTable("", "Distributed(flamegraph, 'default', 'new_metricstats_local', sipHash64(name))")
 	if err != nil {
 		return err
 	}
 
-	err = createFlameGraphTable("", "Distributed(flamegraph, 'default', 'flamegraph_local', sipHash64(name))")
+	err = createFlameGraphTable("", "Distributed(flamegraph, 'default', 'new_flamegraph_local', sipHash64(name))")
 	if err != nil {
 		return err
 	}
 
-	err = createFlameGraphClusterTable("", "Distributed(flamegraph, 'default', 'flamegraph_clusters_local', sipHash64(cluster))")
+	err = createFlameGraphClusterTable("", "Distributed(flamegraph, 'default', 'new_flamegraph_clusters_local', sipHash64(cluster))")
 	return err
 }
 
@@ -765,7 +765,7 @@ func migrateOrCreateTables() {
 
 	// Check version of the table schema if any version is present
 
-	rows, err := config.db.Query("SELECT max(schema_version) FROM flamegraph_table_version_local")
+	rows, err := config.db.Query("SELECT max(schema_version) FROM new_flamegraph_table_version_local")
 	if err != nil {
 		logger.Fatal("Error during database query",
 			zap.Error(err),
@@ -792,7 +792,7 @@ func migrateOrCreateTables() {
 			)
 		}
 
-		stmt, err := tx.Prepare("INSERT INTO flamegraph_table_version_local (schema_version, date, version) VALUES (?, ?, ?)")
+		stmt, err := tx.Prepare("INSERT INTO new_flamegraph_table_version_local (schema_version, date, version) VALUES (?, ?, ?)")
 		if err != nil {
 			logger.Fatal("Error updating version",
 				zap.Error(err),

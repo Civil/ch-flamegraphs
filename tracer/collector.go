@@ -107,10 +107,11 @@ func (st *StackTracer) Start() {
 func (st *StackTracer) startReporting() {
 	logger := st.logger.With(zap.String("function", "startReporting"))
 	tickerProfile := time.NewTicker(st.ProfileDuration)
-	tickerSend := time.NewTicker(st.CollectionInterval)
+	// tickerSend := time.NewTicker(st.CollectionInterval)
 
 	for {
 		select {
+		/*
 		case <-tickerSend.C:
 			err := st.send()
 			if err != nil {
@@ -118,8 +119,15 @@ func (st *StackTracer) startReporting() {
 					zap.Error(err),
 				)
 			}
+			*/
 		case <-tickerProfile.C:
 			st.report("timer")
+			err := st.send()
+			if err != nil {
+				logger.Error("Failed to send POST request",
+					zap.Error(err),
+				)
+			}
 		}
 	}
 }
@@ -203,9 +211,11 @@ func (st *StackTracer) updateCPUCallGraph(p *profile.Profile) error {
 		return errors.New("No period information in profile")
 	}
 
-	st.root = types.NewStackFlamegraphTree("total cpu", st.root.Instance, st.root.Application)
+	rootName := "total cpu"
+	st.root = types.NewStackFlamegraphTree(rootName, st.root.Instance, st.root.Application)
 	st.root.MaxSamples += maxSamples
 
+	fullName := rootName
 	for _, s := range p.Sample {
 		if len(s.Value) <= typeIndex {
 			logger.Warn("Possible inconsistence in profile types and measurements",
@@ -226,8 +236,9 @@ func (st *StackTracer) updateCPUCallGraph(p *profile.Profile) error {
 			if funcName == "runtime.goexit" {
 				continue
 			}
+			fullName = fullName + types.FieldSeparator + funcName
 
-			currentNode = currentNode.FindOrAdd(funcName, fileName, fileLine, stackSamples)
+			currentNode = currentNode.FindOrAdd(funcName, fileName, fileLine, fullName, stackSamples)
 		}
 	}
 
