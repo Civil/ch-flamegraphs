@@ -3,7 +3,7 @@ carbonzipper: carbonserver proxy for graphite-web
 
 [![Build Status](https://travis-ci.org/go-graphite/carbonzipper.svg?branch=master)](https://travis-ci.org/go-graphite/carbonzipper)
 
-We are using <a href="https://packagecloud.io/"><img alt="Private Maven, RPM, DEB, PyPi and RubyGem Repository | packagecloud" height="46" src="https://packagecloud.io/images/packagecloud-badge.png" width="158" /></a> to host our packages!
+<a href="https://packagecloud.io/"><img alt="Private Maven, RPM, DEB, PyPi and RubyGem Repository | packagecloud" height="46" src="https://packagecloud.io/images/packagecloud-badge.png" width="158" /></a>
 
 CarbonZipper is the central part of a replacement graphite storage stack.  It
 proxies requests from graphite-web to a cluster of carbon storage backends.
@@ -11,17 +11,7 @@ Previous versions (available in the git history) were able to talk to python
 carbon stores, but the current version requires the use of
 [go-carbon](https://github.com/lomik/go-carbon) or [graphite-clickhouse](https://github.com/lomik/graphite-clickhouse).
 
-
-Installation
-------------
-
-Stable versions: [Stable repo](https://packagecloud.io/go-graphite/stable/install)
-
-Autobuilds (master, might be unstable): [Autobuild repo](https://packagecloud.io/go-graphite/autobuilds/install)
-
-General information
--------------------
-Configuration is done via a YAML file loaded at startup.  The only required
+Configuration is done via a JSON file loaded at startup.  The only required
 field is the list of carbonserver backends to connect to.
 
 Other pieces of the stack are:
@@ -31,12 +21,10 @@ Other pieces of the stack are:
 
 For an overview of the stack and how the pieces fit together, watch
 [Graphite@Scale or How to store millions metrics per second](https://fosdem.org/2017/schedule/event/graphite_at_scale/)
-from FOSDEM '17 or [Graphite@Scale or How to Store Millions of metrics per Second](https://www.usenix.org/conference/srecon17asia/program/presentation/smirnov) from SRECon17 Asia.
+from FOSDEM '17.
 
 Requirements
 ------------
-
-carbonzipper requires Go 1.8+ to build. It's recommended to always use latest stable.
 
 CarbonZipper uses protobuf-based protocol to talk with underlying storages. For current version the compatibility list is:
 

@@ -1,78 +1,52 @@
 
-# Gopkg.toml example
-#
-# Refer to https://github.com/golang/dep/blob/master/docs/Gopkg.toml.md
-# for detailed Gopkg.toml documentation.
-#
-# required = ["github.com/user/thing/cmd/thing"]
-# ignored = ["github.com/user/project/pkgX", "bitbucket.org/user/project/pkgA/pkgY"]
-#
-# [[constraint]]
-#   name = "github.com/user/project"
-#   version = "1.0.0"
-#
-# [[constraint]]
-#   name = "github.com/user/project2"
-#   branch = "dev"
-#   source = "github.com/myfork/project2"
-#
-# [[override]]
-#  name = "github.com/x/y"
-#  version = "2.4.0"
-
-
-[[constraint]]
+[[dependencies]]
   branch = "master"
   name = "github.com/bradfitz/gomemcache"
 
-[[constraint]]
+[[dependencies]]
   branch = "master"
   name = "github.com/dgryski/go-expirecache"
 
-[[constraint]]
+[[dependencies]]
   branch = "master"
   name = "github.com/dgryski/httputil"
 
-[[constraint]]
+[[dependencies]]
   branch = "master"
   name = "github.com/facebookgo/grace"
 
-[[constraint]]
+[[dependencies]]
   branch = "master"
   name = "github.com/facebookgo/pidfile"
 
-[[constraint]]
+[[dependencies]]
+  branch = "travis-fix"
+  name = "github.com/go-graphite/carbonapi"
+
+[[dependencies]]
+  branch = "master"
   name = "github.com/gogo/protobuf"
-  version = "0.4.0"
 
-[[constraint]]
+[[dependencies]]
+  branch = "master"
   name = "github.com/lestrrat/go-file-rotatelogs"
-  version = "2.1.0"
 
-[[constraint]]
+[[dependencies]]
   branch = "master"
   name = "github.com/lestrrat/go-strftime"
 
-[[constraint]]
+[[dependencies]]
   branch = "master"
   name = "github.com/lomik/og-rek"
 
-[[constraint]]
-  branch = "master"
+[[dependencies]]
   name = "github.com/lomik/zapwriter"
+  revision = "d4499a33b5929c4a2e7e169165f594f35b39638c"
 
-[[constraint]]
+[[dependencies]]
   branch = "master"
-  name = "github.com/peterbourgon/g2g"
-
-[[constraint]]
   name = "github.com/satori/go.uuid"
-  version = "1.1.0"
 
-[[constraint]]
+[[dependencies]]
+  branch = "master"
   name = "go.uber.org/zap"
-  version = "1.5.0"
-
-[[constraint]]
-  branch = "v2"
-  name = "gopkg.in/yaml.v2"

@@ -5,18 +5,17 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
 	"strconv"
 	"time"
 
+	cu "github.com/go-graphite/carbonapi/util"
 	pb3 "github.com/go-graphite/carbonzipper/carbonzipperpb3"
 	"github.com/go-graphite/carbonzipper/limiter"
 	"github.com/go-graphite/carbonzipper/pathcache"
-	cu "github.com/go-graphite/carbonzipper/util/apictx"
-	util "github.com/go-graphite/carbonzipper/util/zipperctx"
+	"github.com/go-graphite/carbonzipper/util"
 
 	"strings"
 
@@ -29,7 +28,6 @@ import (
 type Timeouts struct {
 	Global       time.Duration `yaml:"global"`
 	AfterStarted time.Duration `yaml:"afterStarted"`
-	Connect      time.Duration `yaml:"connect"`
 }
 
 // CarbonSearch is a global structure that contains carbonsearch related configuration bits
@@ -46,10 +44,9 @@ type Config struct {
 
 	CarbonSearch CarbonSearch
 
-	PathCache         pathcache.PathCache
-	SearchCache       pathcache.PathCache
-	Timeouts          Timeouts
-	KeepAliveInterval time.Duration `yaml:"keepAliveInterval"`
+	PathCache   pathcache.PathCache
+	SearchCache pathcache.PathCache
+	Timeouts    Timeouts
 }
 
 // Zipper provides interface to Zipper-related functions
@@ -63,9 +60,6 @@ type Zipper struct {
 
 	timeoutAfterAllStarted time.Duration
 	timeout                time.Duration
-	timeoutConnect         time.Duration
-	timeoutKeepAlive       time.Duration
-	keepAliveInterval      time.Duration
 
 	searchBackend    string
 	searchConfigured bool
@@ -122,10 +116,8 @@ func NewZipper(sender func(*Stats), config *Config) *Zipper {
 		searchConfigured:          len(config.CarbonSearch.Prefix) > 0 && len(config.CarbonSearch.Backend) > 0,
 		concurrencyLimitPerServer: config.ConcurrencyLimitPerServer,
 		maxIdleConnsPerHost:       config.MaxIdleConnsPerHost,
-		keepAliveInterval:         config.KeepAliveInterval,
 		timeoutAfterAllStarted:    config.Timeouts.AfterStarted,
 		timeout:                   config.Timeouts.Global,
-		timeoutConnect:            config.Timeouts.Connect,
 	}
 
 	logger.Info("zipper config",
@@ -143,11 +135,6 @@ func NewZipper(sender func(*Stats), config *Config) *Zipper {
 	// configure the storage client
 	z.storageClient.Transport = &http.Transport{
 		MaxIdleConnsPerHost: z.maxIdleConnsPerHost,
-		DialContext: (&net.Dialer{
-			Timeout:   z.timeoutConnect,
-			KeepAlive: z.keepAliveInterval,
-			DualStack: true,
-		}).DialContext,
 	}
 
 	go z.probeTlds()
@@ -187,7 +174,7 @@ func mergeResponses(responses []ServerResponse, stats *Stats) ([]string, *pb3.Mu
 		}
 		stats.MemoryUsage += int64(d.Size())
 		for _, m := range d.Metrics {
-			metrics[m.GetName()] = append(metrics[m.GetName()], m)
+			metrics[m.GetName()] = append(metrics[m.GetName()], *m)
 		}
 		servers = append(servers, r.server)
 	}
@@ -209,7 +196,7 @@ func mergeResponses(responses []ServerResponse, stats *Stats) ([]string, *pb3.Mu
 				zap.String("name", name),
 			)
 			m := decoded[0]
-			multi.Metrics = append(multi.Metrics, m)
+			multi.Metrics = append(multi.Metrics, &m)
 			continue
 		}
 
@@ -225,7 +212,7 @@ func mergeResponses(responses []ServerResponse, stats *Stats) ([]string, *pb3.Mu
 		metric := decoded[0]
 
 		mergeValues(&metric, decoded, stats)
-		multi.Metrics = append(multi.Metrics, metric)
+		multi.Metrics = append(multi.Metrics, &metric)
 	}
 
 	stats.MemoryUsage += int64(multi.Size())
@@ -304,14 +291,14 @@ func infoUnpackPB(responses []ServerResponse, stats *Stats) map[string]pb3.InfoR
 	return decoded
 }
 
-func findUnpackPB(responses []ServerResponse, stats *Stats) ([]pb3.GlobMatch, map[string][]string) {
+func findUnpackPB(responses []ServerResponse, stats *Stats) ([]*pb3.GlobMatch, map[string][]string) {
 	logger := zapwriter.Logger("zipper_find").With(zap.String("handler", "findUnpackPB"))
 
 	// metric -> [server1, ... ]
 	paths := make(map[string][]string)
 	seen := make(map[nameLeaf]bool)
 
-	var metrics []pb3.GlobMatch
+	var metrics []*pb3.GlobMatch
 	for _, r := range responses {
 		var metric pb3.GlobResponse
 		err := metric.Unmarshal(r.response)
@@ -664,23 +651,23 @@ func (z *Zipper) Info(ctx context.Context, logger *zap.Logger, target string) (m
 	return infos, stats, nil
 }
 
-func (z *Zipper) Find(ctx context.Context, logger *zap.Logger, query string) ([]pb3.GlobMatch, *Stats, error) {
+func (z *Zipper) Find(ctx context.Context, logger *zap.Logger, query string) ([]*pb3.GlobMatch, *Stats, error) {
 	stats := &Stats{}
 	queries := []string{query}
 
 	rewrite, _ := url.Parse("http://127.0.0.1/metrics/find/")
 
 	v := url.Values{
-		"query":  queries,
+		"query":  []string{query},
 		"format": []string{"protobuf"},
 	}
 	rewrite.RawQuery = v.Encode()
 
-	if z.searchConfigured && strings.HasPrefix(query, z.searchPrefix) {
+	if z.searchConfigured && strings.HasPrefix(queries[0], z.searchPrefix) {
 		stats.SearchRequests++
 		// 'completer' requests are translated into standard Find requests with
 		// a trailing '*' by graphite-web
-		if strings.HasSuffix(query, "*") {
+		if strings.HasSuffix(queries[0], "*") {
 			searchCompleterResponse := z.multiGet(ctx, logger, []string{z.searchBackend}, rewrite.RequestURI(), stats)
 			matches, _ := findUnpackPB(searchCompleterResponse, stats)
 			// this is a completer request, and so we should return the set of
@@ -689,16 +676,16 @@ func (z *Zipper) Find(ctx context.Context, logger *zap.Logger, query string) ([]
 			return matches, stats, nil
 		}
 		var ok bool
-		if queries, ok = z.searchCache.Get(query); !ok || queries == nil || len(queries) == 0 {
+		if queries, ok = z.searchCache.Get(queries[0]); !ok || queries == nil || len(queries) == 0 {
 			stats.SearchCacheMisses++
 			queries = z.fetchCarbonsearchResponse(ctx, logger, rewrite.RequestURI(), stats)
-			z.searchCache.Set(query, queries)
+			z.searchCache.Set(queries[0], queries)
 		} else {
 			stats.SearchCacheHits++
 		}
 	}
 
-	var metrics []pb3.GlobMatch
+	var metrics []*pb3.GlobMatch
 	// TODO(nnuss): Rewrite the result queries to a series of brace expansions based on TLD?
 	// [a.b, a.c, a.dee.eee.eff, x.y] => [ "a.{b,c,dee.eee.eff}", "x.y" ]
 	// Be mindful that carbonserver's default MaxGlobs is 10

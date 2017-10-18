@@ -38,6 +38,7 @@ fi
 
 fpm -s dir -t deb -n ${NAME} -v ${VERSION} -C ${TMPDIR} \
     -p ${NAME}_VERSION_ARCH.deb \
+    -d "libcairo2 > 1.11" \
     --no-deb-systemd-restart-after-upgrade \
     --after-install contrib/fpm/systemd-reload.sh \
     --description "carbonserver proxy for graphite-web and carbonapi" \

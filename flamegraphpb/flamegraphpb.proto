@@ -8,7 +8,7 @@ import "google/protobuf/empty.proto";
 // Version
 service FlamegraphV1 {
     rpc GetVersion (google.protobuf.Empty) returns (ProtocolVersionResponse) {}
-    rpc SendFlamegraph (FlameGraphNode) returns (google.protobuf.Empty) {}
+    rpc SendFlamegraph (FlameGraph) returns (google.protobuf.Empty) {}
     rpc SendMetricsStats (MultiMetricStats) returns (google.protobuf.Empty) {}
 }
 
@@ -16,31 +16,39 @@ message ProtocolVersionResponse {
     int64 version = 1;
 }
 
-message FlameGraphNode {
-    uint64 Id = 1;
+message FlameGraph {
+    int64 Timestamp = 1;
     string Cluster = 2;
-    string Name  = 3;
-    uint64 Total = 4;
-    uint64 Value = 5;
-    int64 ModTime = 6;
-    int64 RdTime = 7;
-    int64 ATime = 8;
-    uint64 Count = 9;
-    repeated FlameGraphNode Children = 10;
-    repeated uint64 ChildrenIds = 11;
-    uint64 ParentID = 12;
+    string Server = 3;
+    FlameGraphNode Tree = 4;
 }
 
-message MetricStats {
-    string Cluster = 1;
-    string Path = 2;
-    int64 ModTime = 3;
-    int64 ATime = 4;
-    int64 RdTime = 5;
-    int64 Size = 6;
-    int64 Count = 7;
+message FlameGraphNode {
+    uint64 Id = 1;
+    string Name  = 2;
+    uint64 Total = 3;
+    uint64 Value = 4;
+    int64 ModTime = 5;
+    int64 RdTime = 6;
+    int64 ATime = 7;
+    uint64 Count = 8;
+    repeated FlameGraphNode Children = 9;
+    repeated uint64 ChildrenIds = 10;
+    uint64 ParentID = 11;
+}
+
+message MetricInfo {
+    string Path = 1;
+    int64 ModTime = 2;
+    int64 ATime = 3;
+    int64 RdTime = 4;
+    int64 Size = 5;
+    int64 Count = 6;
 }
 
 message MultiMetricStats {
-    repeated MetricStats metrics = 1 [(gogoproto.nullable) = false];
+    int64 Timestamp = 1;
+    string Cluster = 2;
+    string Server = 3;
+    repeated MetricInfo metrics = 4 [(gogoproto.nullable) = false];
 }

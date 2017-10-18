@@ -280,7 +280,7 @@ func sendToClickhouse(node *types.FlameGraphNode, t int64) {
 	)
 }
 
-var errTimeout = fmt.Errorf("Max tries exceeded")
+var errTimeout = fmt.Errorf("max tries exceeded")
 
 func fetchData(httpClient *http.Client, url string) (*pb.MetricDetailsResponse, error) {
 	var metricsResponse pb.MetricDetailsResponse

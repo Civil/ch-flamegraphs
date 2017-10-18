@@ -21,12 +21,12 @@ import (
 	"github.com/dgryski/httputil"
 	"github.com/facebookgo/grace/gracehttp"
 	"github.com/facebookgo/pidfile"
-	cu "github.com/go-graphite/carbonzipper/util/apictx"
+	cu "github.com/go-graphite/carbonapi/util"
 	pb3 "github.com/go-graphite/carbonzipper/carbonzipperpb3"
 	"github.com/go-graphite/carbonzipper/intervalset"
 	"github.com/go-graphite/carbonzipper/mstats"
 	"github.com/go-graphite/carbonzipper/pathcache"
-	util "github.com/go-graphite/carbonzipper/util/zipperctx"
+	"github.com/go-graphite/carbonzipper/util"
 	"github.com/go-graphite/carbonzipper/zipper"
 	pickle "github.com/lomik/og-rek"
 	"github.com/peterbourgon/g2g"
@@ -60,8 +60,7 @@ var config = struct {
 	Listen   string         `yaml:"listen"`
 	Buckets  int            `yaml:"buckets"`
 
-	Timeouts          zipper.Timeouts `yaml:"timeouts"`
-	KeepAliveInterval time.Duration   `yaml:"keepAliveInterval"`
+	Timeouts zipper.Timeouts `yaml:"timeouts"`
 
 	CarbonSearch zipper.CarbonSearch `yaml:"carbonsearch"`
 
@@ -85,9 +84,7 @@ var config = struct {
 	Timeouts: zipper.Timeouts{
 		Global:       10000 * time.Second,
 		AfterStarted: 2 * time.Second,
-		Connect:      200 * time.Millisecond,
 	},
-	KeepAliveInterval: 30 * time.Second,
 
 	MaxIdleConnsPerHost: 100,
 
@@ -207,7 +204,7 @@ func findHandler(w http.ResponseWriter, req *http.Request) {
 	)
 }
 
-func encodeFindResponse(format, query string, w http.ResponseWriter, metrics []pb3.GlobMatch) error {
+func encodeFindResponse(format, query string, w http.ResponseWriter, metrics []*pb3.GlobMatch) error {
 	var err error
 	var b []byte
 	switch format {
@@ -300,6 +297,8 @@ func renderHandler(w http.ResponseWriter, req *http.Request) {
 		zap.String("format", format),
 		zap.String("target", target),
 	)
+
+
 
 	from, err := strconv.Atoi(req.FormValue("from"))
 	if err != nil {
@@ -483,12 +482,12 @@ func infoHandler(w http.ResponseWriter, req *http.Request) {
 	case "protobuf", "protobuf3":
 		w.Header().Set("Content-Type", contentTypeProtobuf)
 		var result pb3.ZipperInfoResponse
-		result.Responses = make([]pb3.ServerInfoResponse, len(infos))
+		result.Responses = make([]*pb3.ServerInfoResponse, len(infos))
 		for s, i := range infos {
 			var r pb3.ServerInfoResponse
 			r.Server = s
 			r.Info = &i
-			result.Responses = append(result.Responses, r)
+			result.Responses = append(result.Responses, &r)
 		}
 		b, err = result.Marshal()
 		/* #nosec */
@@ -543,7 +542,6 @@ func main() {
 
 	flag.Parse()
 
-	expvar.NewString("GoVersion").Set(runtime.Version())
 	expvar.NewString("BuildVersion").Set(BuildVersion)
 
 	if *configFile == "" {
@@ -616,9 +614,8 @@ func main() {
 		MaxIdleConnsPerHost:       config.MaxIdleConnsPerHost,
 		Backends:                  config.Backends,
 
-		CarbonSearch:      config.CarbonSearch,
-		Timeouts:          config.Timeouts,
-		KeepAliveInterval: config.KeepAliveInterval,
+		CarbonSearch: config.CarbonSearch,
+		Timeouts:     config.Timeouts,
 	}
 
 	Metrics.CacheSize = expvar.Func(func() interface{} { return zipperConfig.PathCache.ECSize() })

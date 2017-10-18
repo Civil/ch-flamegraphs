@@ -31,7 +31,7 @@ import (
 var defaultLoggerConfig = zapwriter.Config{
 	Logger:           "",
 	File:             "stdout",
-	Level:            "debug",
+	Level:            "info",
 	Encoding:         "json",
 	EncodingTime:     "iso8601",
 	EncodingDuration: "seconds",
@@ -44,6 +44,7 @@ var errUnknown = fmt.Errorf("unknown error")
 
 type carbonserverCollector struct {
 	endpoint     string
+	server       string
 	root         *fgpb.FlameGraphNode
 	maxTries     int
 	fetchTimeout time.Duration
@@ -55,7 +56,10 @@ type carbonserverCollector struct {
 }
 
 func newCarbonserverCollector() (*carbonserverCollector, error) {
-	hostname, _ := os.Hostname()
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, err
+	}
 
 	// TODO: Implement normal load balancing here with dynamic or semi-dynamic reconfiguration
 	// TODO: etcd? consul?
@@ -92,6 +96,7 @@ func newCarbonserverCollector() (*carbonserverCollector, error) {
 
 	collector := &carbonserverCollector{
 		endpoint:     config.Carbonserver,
+		server:       hostname,
 		client:       fgpb.NewFlamegraphV1Client(conn),
 		cleanup:      cleanup,
 		httpClient:   &http.Client{},
@@ -160,7 +165,6 @@ func (c *carbonserverCollector) constructTree(root *fgpb.FlameGraphNode, details
 
 				m := &fgpb.FlameGraphNode{
 					Id:       cnt,
-					Cluster:  parent.Cluster,
 					Name:     seenSoFar,
 					Value:    v,
 					ModTime:  data.ModTime,
@@ -181,7 +185,6 @@ func (c *carbonserverCollector) constructTree(root *fgpb.FlameGraphNode, details
 		occupiedByRest := total - occupiedByMetrics - details.FreeSpace
 		m := &fgpb.FlameGraphNode{
 			Id:       cnt,
-			Cluster:  root.Cluster,
 			Name:     "[disk].[not-whisper]",
 			Value:    occupiedByRest,
 			ModTime:  root.ModTime,
@@ -193,7 +196,6 @@ func (c *carbonserverCollector) constructTree(root *fgpb.FlameGraphNode, details
 		root.Children = append(root.Children, m)
 	} else {
 		logger.Error("occupiedByMetrics > totalSpace-freeSpace",
-			zap.String("cluster", root.Cluster),
 			zap.Uint64("occupied_by_metrics", occupiedByMetrics),
 			zap.Uint64("free_space", details.FreeSpace),
 			zap.Uint64("total_space", details.TotalSpace),
@@ -292,11 +294,13 @@ func (c *carbonserverCollector) getDetails(ctx context.Context) (*pb.MetricDetai
 	return response, nil
 }
 
-func (c *carbonserverCollector) sendMetricstats(ctx context.Context, details *pb.MetricDetailsResponse) error {
-	var stats fgpb.MultiMetricStats
+func (c *carbonserverCollector) sendMetricstats(ctx context.Context, timestamp int64, details *pb.MetricDetailsResponse) error {
+	stats := fgpb.MultiMetricStats{
+		Timestamp: timestamp,
+		Cluster:   config.Cluster,
+	}
 	for k, v := range details.Metrics {
-		newV := fgpb.MetricStats{
-			Cluster: config.Cluster,
+		newV := fgpb.MetricInfo{
 			Path:    k,
 			ModTime: v.ModTime,
 			ATime:   v.ATime,
@@ -312,7 +316,7 @@ func (c *carbonserverCollector) sendMetricstats(ctx context.Context, details *pb
 
 }
 
-func (c *carbonserverCollector) createTree(ctx context.Context, timeStamp int64) (err error) {
+func (c *carbonserverCollector) createTree(ctx context.Context, timestamp int64) (err error) {
 	logger.Info("fetching results",
 		zap.Any("cluster", config.Cluster),
 	)
@@ -348,7 +352,7 @@ func (c *carbonserverCollector) createTree(ctx context.Context, timeStamp int64)
 	if !config.DryRun {
 		wg.Add(1)
 		go func() {
-			err := c.sendMetricstats(ctx, details)
+			err := c.sendMetricstats(ctx, timestamp, details)
 			if err != nil {
 				errChan <- err
 			}
@@ -358,7 +362,6 @@ func (c *carbonserverCollector) createTree(ctx context.Context, timeStamp int64)
 
 	flameGraphTreeRoot := &fgpb.FlameGraphNode{
 		Id:       types.RootElementId,
-		Cluster:  config.Cluster,
 		Name:     "[disk]",
 		Value:    0,
 		Total:    details.TotalSpace,
@@ -367,11 +370,17 @@ func (c *carbonserverCollector) createTree(ctx context.Context, timeStamp int64)
 
 	freeSpaceNode := &fgpb.FlameGraphNode{
 		Id:       types.RootElementId + 1,
-		Cluster:  config.Cluster,
 		Name:     "[disk].[free]",
 		Value:    details.FreeSpace,
 		Total:    details.TotalSpace,
 		ParentID: flameGraphTreeRoot.Id,
+	}
+
+	flameGraph := &fgpb.FlameGraph{
+		Cluster:   config.Cluster,
+		Server:    c.server,
+		Timestamp: timestamp,
+		Tree:      flameGraphTreeRoot,
 	}
 
 	flameGraphTreeRoot.ChildrenIds = append(flameGraphTreeRoot.ChildrenIds, types.RootElementId+1)
@@ -385,7 +394,7 @@ func (c *carbonserverCollector) createTree(ctx context.Context, timeStamp int64)
 	if !config.DryRun {
 		wg.Add(1)
 		go func() {
-			_, err := c.client.SendFlamegraph(ctx, flameGraphTreeRoot)
+			_, err := c.client.SendFlamegraph(ctx, flameGraph)
 			if err != nil {
 				errChan <- err
 			}
@@ -409,10 +418,12 @@ func (c *carbonserverCollector) createTree(ctx context.Context, timeStamp int64)
 func (c *carbonserverCollector) ProcessData() {
 	defer c.cleanup()
 	for {
-		ctx, cancel := context.WithTimeout(context.Background(), config.RerunInterval)
 		t0 := time.Now()
+		timeStamp := int64(t0.Unix()) - (t0.Unix() % int64(config.RerunInterval.Seconds()))
+		nextRun := time.Unix(timeStamp+int64(config.RerunInterval.Seconds()), 0)
+
+		ctx, cancel := context.WithDeadline(context.Background(), nextRun)
 		status := "ok"
-		timeStamp := int64(t0.Unix()) - (t0.Unix() % int64(config.RerunInterval))
 		logger.Info("Iteration start")
 
 		err := c.createTree(ctx, timeStamp)
@@ -421,7 +432,7 @@ func (c *carbonserverCollector) ProcessData() {
 		}
 
 		spentTime := time.Since(t0)
-		sleepTime := config.RerunInterval - spentTime
+		sleepTime := nextRun.Sub(time.Now())
 		select {
 		case <-ctx.Done():
 			status = "timeout exceeded"
