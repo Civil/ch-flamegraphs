@@ -16,7 +16,7 @@ import (
 	"time"
 
 	fgpb "github.com/Civil/carbonserver-flamegraphs/flamegraphpb"
-	"github.com/Civil/carbonserver-flamegraphs/types"
+	"github.com/Civil/carbonserver-flamegraphs/helper"
 	pb "github.com/go-graphite/carbonzipper/carbonzipperpb3"
 	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
@@ -55,12 +55,7 @@ type carbonserverCollector struct {
 	httpClient *http.Client
 }
 
-func newCarbonserverCollector() (*carbonserverCollector, error) {
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, err
-	}
-
+func newCarbonserverCollector(hostname string) (*carbonserverCollector, error) {
 	// TODO: Implement normal load balancing here with dynamic or semi-dynamic reconfiguration
 	// TODO: etcd? consul?
 	r, cleanup := manual.GenerateAndRegisterManualResolver()
@@ -71,10 +66,11 @@ func newCarbonserverCollector() (*carbonserverCollector, error) {
 	}
 
 	opts := []grpc.DialOption{
-		grpc.WithUserAgent("carbonserver-collector-simple/" + config.Cluster + "/" + hostname),
+		grpc.WithUserAgent("carbonserver-collector-simple/cluster=" + config.Cluster + "/hostname=" + hostname),
 		grpc.WithCompressor(grpc.NewGZIPCompressor()),
 		grpc.WithDecompressor(grpc.NewGZIPDecompressor()),
 		grpc.WithBalancerBuilder(balancer.Get("roundrobin")),
+		grpc.WithMaxMsgSize(int(config.MaxMessageSize)),
 	}
 
 	if config.ConnectOptions.Insecure {
@@ -117,7 +113,6 @@ func newCarbonserverCollector() (*carbonserverCollector, error) {
 }
 
 func (c *carbonserverCollector) constructTree(root *fgpb.FlameGraphNode, details *pb.MetricDetailsResponse) {
-	cnt := types.RootElementId + 2
 	total := details.TotalSpace
 	occupiedByMetrics := uint64(0)
 	seen := make(map[string]*fgpb.FlameGraphNode)
@@ -163,8 +158,9 @@ func (c *carbonserverCollector) constructTree(root *fgpb.FlameGraphNode, details
 					v = uint64(data.Size_)
 				}
 
+				id := helper.NameToIdUint64(seenSoFar)
 				m := &fgpb.FlameGraphNode{
-					Id:       cnt,
+					Id:       id,
 					Name:     seenSoFar,
 					Value:    v,
 					ModTime:  data.ModTime,
@@ -175,16 +171,16 @@ func (c *carbonserverCollector) constructTree(root *fgpb.FlameGraphNode, details
 				}
 				seen[seenSoFar] = m
 				parent.Children = append(parent.Children, m)
-				parent.ChildrenIds = append(parent.ChildrenIds, cnt)
-				cnt++
+				parent.ChildrenIds = append(parent.ChildrenIds, id)
 			}
 		}
 	}
 
 	if occupiedByMetrics+details.FreeSpace < total {
 		occupiedByRest := total - occupiedByMetrics - details.FreeSpace
+		id := helper.NameToIdUint64("[disk].[not-whisper]")
 		m := &fgpb.FlameGraphNode{
-			Id:       cnt,
+			Id:       id,
 			Name:     "[disk].[not-whisper]",
 			Value:    occupiedByRest,
 			ModTime:  root.ModTime,
@@ -192,7 +188,7 @@ func (c *carbonserverCollector) constructTree(root *fgpb.FlameGraphNode, details
 			ParentID: root.Id,
 		}
 
-		root.ChildrenIds = append(root.ChildrenIds, cnt)
+		root.ChildrenIds = append(root.ChildrenIds, id)
 		root.Children = append(root.Children, m)
 	} else {
 		logger.Error("occupiedByMetrics > totalSpace-freeSpace",
@@ -298,6 +294,7 @@ func (c *carbonserverCollector) sendMetricstats(ctx context.Context, timestamp i
 	stats := fgpb.MultiMetricStats{
 		Timestamp: timestamp,
 		Cluster:   config.Cluster,
+		Server:    c.server,
 	}
 	for k, v := range details.Metrics {
 		newV := fgpb.MetricInfo{
@@ -361,7 +358,7 @@ func (c *carbonserverCollector) createTree(ctx context.Context, timestamp int64)
 	}
 
 	flameGraphTreeRoot := &fgpb.FlameGraphNode{
-		Id:       types.RootElementId,
+		Id:       helper.NameToIdUint64("[disk]"),
 		Name:     "[disk]",
 		Value:    0,
 		Total:    details.TotalSpace,
@@ -369,7 +366,7 @@ func (c *carbonserverCollector) createTree(ctx context.Context, timestamp int64)
 	}
 
 	freeSpaceNode := &fgpb.FlameGraphNode{
-		Id:       types.RootElementId + 1,
+		Id:       helper.NameToIdUint64("[disk].[free]"),
 		Name:     "[disk].[free]",
 		Value:    details.FreeSpace,
 		Total:    details.TotalSpace,
@@ -383,7 +380,7 @@ func (c *carbonserverCollector) createTree(ctx context.Context, timestamp int64)
 		Tree:      flameGraphTreeRoot,
 	}
 
-	flameGraphTreeRoot.ChildrenIds = append(flameGraphTreeRoot.ChildrenIds, types.RootElementId+1)
+	flameGraphTreeRoot.ChildrenIds = append(flameGraphTreeRoot.ChildrenIds, helper.NameToIdUint64("[disk].[free]"))
 	flameGraphTreeRoot.Children = append(flameGraphTreeRoot.Children, freeSpaceNode)
 
 	c.constructTree(flameGraphTreeRoot, details)
@@ -424,7 +421,7 @@ func (c *carbonserverCollector) ProcessData() {
 
 		ctx, cancel := context.WithDeadline(context.Background(), nextRun)
 		status := "ok"
-		logger.Info("Iteration start")
+		logger.Info("iteration started")
 
 		err := c.createTree(ctx, timeStamp)
 		if err != nil {
@@ -467,6 +464,8 @@ var config = struct {
 	Listen         string         `yaml:"listen"`
 	ConnectOptions connectOptions `yaml:"connect_options"`
 	MaxTries       int            `yaml:"max_tries"`
+	MaxMessageSize uint32         `yaml:"max_message_size"`
+	OwnHostname    string         `yaml:"own_hostname"`
 
 	MaxIdleConnsPerHost int
 	TimeoutConnect      time.Duration
@@ -474,12 +473,13 @@ var config = struct {
 
 	Logger []zapwriter.Config `yaml:"logger"`
 }{
-	Carbonserver:  "http://localhost:8080",
-	RerunInterval: 10 * time.Minute,
-	DryRun:        true,
-	SendHosts:     []string{"127.0.0.1"},
-	Listen:        "[::]:8088",
-	MaxTries:      3,
+	Carbonserver:   "http://localhost:8080",
+	RerunInterval:  10 * time.Minute,
+	DryRun:         true,
+	SendHosts:      []string{"127.0.0.1"},
+	Listen:         "[::]:8088",
+	MaxTries:       3,
+	MaxMessageSize: 1.5 * 1024 * 1024 * 1024,
 	ConnectOptions: connectOptions{
 		Insecure: true,
 	},
@@ -542,7 +542,22 @@ func main() {
 		)
 	}
 
-	collector, err := newCarbonserverCollector()
+	if config.OwnHostname == "" {
+		config.OwnHostname, err = os.Hostname()
+		if err != nil {
+			logger.Fatal("failed to get hostname",
+				zap.Error(err),
+			)
+		}
+	}
+
+	if config.OwnHostname == "" {
+		logger.Fatal("empty hostname",
+			zap.Error(fmt.Errorf("something went wrong and os returned empty hostname")),
+		)
+	}
+
+	collector, err := newCarbonserverCollector(config.OwnHostname)
 	if err != nil {
 		logger.Fatal("failed to initialize collector",
 			zap.Error(err),

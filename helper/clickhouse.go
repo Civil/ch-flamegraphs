@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"database/sql"
+
 	_ "github.com/kshvakov/clickhouse"
 
 	fgpb "github.com/Civil/carbonserver-flamegraphs/flamegraphpb"
@@ -12,11 +13,11 @@ import (
 )
 
 type ClickhouseConfig struct {
-	ClickhouseHost string
-	RowsPerInsert  int
+	ClickhouseHost string `yaml:"host"`
+	RowsPerInsert  int    `yaml:"rows_per_insert"`
 
-	UseDistributedTables   bool
-	DistributedClusterName string
+	UseDistributedTables   bool   `yaml:"use_distributed_tables"`
+	DistributedClusterName string `yaml:"distributed_cluster_name"`
 }
 
 func DBStartTransaction(db *sql.DB, query string) (*sql.Tx, *sql.Stmt, error) {
@@ -151,18 +152,30 @@ func (c *ClickhouseSender) SendStacktrace(data *types.StackFlameGraphNode, fullN
 }
 
 const (
-	FlamegraphInsertQuery = "INSERT INTO flamegraph (timestamp, type, cluster, id, name, total, value, parent_id, children_ids, level, mtime, date, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	FlamegraphInsertQuery = "INSERT INTO flamegraph (timestamp, type, cluster, id, name, total, value, parent_id, children_ids, level, mtime, server, date, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	BaseLevel             = 0
 )
 
 func (c *ClickhouseSender) SendFgPB(tree *fgpb.FlameGraph) error {
-	return c.sendFgNode(BaseLevel, tree.Timestamp, tree.Cluster, tree.Tree)
+	tx, stmt, err := DBStartTransaction(c.db, FlamegraphInsertQuery)
+	if err != nil {
+		return err
+	}
+
+	err = c.sendFgNode(stmt, BaseLevel, tree.Timestamp, tree.Cluster, tree.Server, tree.Tree)
+	if err != nil {
+		return err
+	}
+
+	tx.Commit()
+
+	return c.SendTimestamp("flamegraph", tree.Cluster, tree.Timestamp)
 }
 
-func (c *ClickhouseSender) sendFgNode(level int, timestamp int64, cluster string, node *fgpb.FlameGraphNode) error {
+func (c *ClickhouseSender) sendFgNode(stmt *sql.Stmt, level int, timestamp int64, cluster, server string, node *fgpb.FlameGraphNode) error {
 	c.lines++
 
-	_, err := c.stmt.Exec(
+	_, err := stmt.Exec(
 		timestamp,
 		"graphite_metrics",
 		cluster,
@@ -174,6 +187,7 @@ func (c *ClickhouseSender) sendFgNode(level int, timestamp int64, cluster string
 		clickhouse.Array(node.ChildrenIds),
 		level,
 		node.ModTime,
+		server,
 		c.now,
 		uint64(c.now.Unix()),
 	)
@@ -181,24 +195,10 @@ func (c *ClickhouseSender) sendFgNode(level int, timestamp int64, cluster string
 		return err
 	}
 
-	if c.lines >= c.linesToBuffer || time.Since(c.txStart) > 280*time.Second {
-		err = c.tx.Commit()
-		if err != nil {
-			return err
-		}
-		c.tx, c.stmt, err = DBStartTransaction(c.db, FlamegraphInsertQuery)
-		if err != nil {
-			return err
-		}
-		c.commitedLines += int64(c.lines)
-		c.lines = 0
-		c.txStart = time.Now()
-	}
-
 	if node.Children != nil {
 		level += 1
 		for _, childNode := range node.Children {
-			c.sendFgNode(level, timestamp, cluster, childNode)
+			c.sendFgNode(stmt, level, timestamp, cluster, server, childNode)
 		}
 	}
 
@@ -275,9 +275,14 @@ const (
 )
 
 func (c *ClickhouseSender) SendMetricStatsPB(stats *fgpb.MultiMetricStats) error {
+	tx, stmt, err := DBStartTransaction(c.db, MetricStatInsertQuery)
+	if err != nil {
+		return err
+	}
+
 	for _, s := range stats.Metrics {
 		c.lines++
-		_, err := c.stmt.Exec(
+		_, err := stmt.Exec(
 			stats.Timestamp,
 			"graphite_metrics",
 			stats.Cluster,
@@ -292,23 +297,15 @@ func (c *ClickhouseSender) SendMetricStatsPB(stats *fgpb.MultiMetricStats) error
 		if err != nil {
 			return err
 		}
-
-		if c.lines >= c.linesToBuffer || time.Since(c.txStart) > 280*time.Second {
-			err = c.tx.Commit()
-			if err != nil {
-				return err
-			}
-			c.tx, c.stmt, err = DBStartTransaction(c.db, MetricStatInsertQuery)
-			if err != nil {
-				return err
-			}
-			c.commitedLines += int64(c.lines)
-			c.lines = 0
-			c.txStart = time.Now()
-		}
 	}
 
-	return nil
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return c.SendTimestamp("metricstats", stats.Cluster, stats.Timestamp)
+
 }
 
 func (c *ClickhouseSender) SendMetricStats(timestamp int64, cluster, path string, mtime, atime, rdtime, count int64) error {
@@ -342,7 +339,6 @@ func (c *ClickhouseSender) SendMetricStats(timestamp int64, cluster, path string
 		c.lines = 0
 		c.txStart = time.Now()
 	}
-
 	return err
 }
 
@@ -351,11 +347,17 @@ func (c *ClickhouseSender) Commit() (int64, error) {
 	return c.commitedLines, c.tx.Commit()
 }
 
-func (c *ClickhouseSender) CommitAndRenew() (int64, error) {
-	c.commitedLines += int64(c.lines)
-	err := c.tx.Commit()
+func (c *ClickhouseSender) CommitAndRenew(tx *sql.Tx, query string) error {
+	err := tx.Commit()
 	if err != nil {
-		return c.commitedLines, err
+		return err
 	}
-	return c.commitedLines, c.startTransaction()
+	c.tx, c.stmt, err = DBStartTransaction(c.db, query)
+	if err != nil {
+		return err
+	}
+	c.commitedLines += int64(c.lines)
+	c.lines = 0
+	c.txStart = time.Now()
+	return nil
 }
