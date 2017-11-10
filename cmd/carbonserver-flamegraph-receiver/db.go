@@ -74,6 +74,7 @@ func createTimestampsMV(db *sql.DB, tablePostfix string) error {
 		FROM flamegraph_timestamps` + tablePostfix + `
 		GROUP BY type, cluster, timestamp, date
 		`)
+/*
 	if err != nil {
 		return err
 	}
@@ -89,7 +90,7 @@ func createTimestampsMV(db *sql.DB, tablePostfix string) error {
 		FROM flamegraph_timestamps` + tablePostfix + `_mv
 		GROUP BY type, cluster, timestamp, date
 		`)
-
+*/
 	return err
 }
 
@@ -136,6 +137,7 @@ func createMetricStatsMV(db *sql.DB, tablePostfix string) error {
 		FROM metricstats` + tablePostfix + `
 		GROUP BY timestamp, type, cluster, name, date
 		`)
+/*
 	if err != nil {
 		return err
 	}
@@ -156,7 +158,7 @@ func createMetricStatsMV(db *sql.DB, tablePostfix string) error {
 		FROM metricstats` + tablePostfix + `_mv
 		GROUP BY timestamp, type, cluster, name, date
 		`)
-
+*/
 	return err
 }
 
@@ -211,7 +213,7 @@ func createFlameGraphMV(db *sql.DB, tablePostfix string) error {
 		FROM flamegraph` + tablePostfix + `
 		GROUP BY timestamp, type, cluster, id, name, parent_id, date
 		`)
-
+/*
 	if err != nil {
 		return err
 	}
@@ -236,7 +238,7 @@ func createFlameGraphMV(db *sql.DB, tablePostfix string) error {
 		FROM flamegraph` + tablePostfix + `_mv
 		GROUP BY timestamp, type, cluster, id, name, parent_id, date
 		`)
-
+*/
 	return err
 }
 
@@ -272,12 +274,12 @@ func createFlameGraphClusterMV(db *sql.DB, tablePostfix string) error {
 		FROM flamegraph` + tablePostfix + `
 		GROUP BY type, cluster, date
 		`)
+/*
 	if err != nil {
 		return err
 	}
 
 	_, err = db.Exec("CREATE VIEW IF NOT EXISTS flamegraph_clusters" + tablePostfix + `_view
-		ENGINE = AggregatingMergeTree(date, (type, cluster, date), 8192)
 		AS SELECT
 			type as type,
 			cluster as cluster,
@@ -287,7 +289,7 @@ func createFlameGraphClusterMV(db *sql.DB, tablePostfix string) error {
 		FROM flamegraph` + tablePostfix + `_mv
 		GROUP BY type, cluster, date
 		`)
-
+*/
 	return err
 }
 
