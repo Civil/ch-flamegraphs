@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -414,10 +415,20 @@ func (c *carbonserverCollector) createTree(ctx context.Context, timestamp int64)
 
 func (c *carbonserverCollector) ProcessData() {
 	defer c.cleanup()
+	firstRun := true
 	for {
+		if firstRun {
+			firstRun = false
+			t0 := time.Now()
+			timeStamp := int64(t0.Unix()) - (t0.Unix() % int64(config.RerunInterval.Seconds()))
+			sleepTime := time.Unix(timeStamp+int64(config.RerunInterval.Seconds()+config.ExtraDelay.Seconds()), 0).Sub(time.Now())
+			time.Sleep(sleepTime)
+			continue
+		}
+
 		t0 := time.Now()
 		timeStamp := int64(t0.Unix()) - (t0.Unix() % int64(config.RerunInterval.Seconds()))
-		nextRun := time.Unix(timeStamp+int64(config.RerunInterval.Seconds()), 0)
+		nextRun := time.Unix(timeStamp+int64(config.RerunInterval.Seconds()+config.ExtraDelay.Seconds()), 0)
 
 		ctx, cancel := context.WithDeadline(context.Background(), nextRun)
 		status := "ok"
@@ -441,6 +452,7 @@ func (c *carbonserverCollector) ProcessData() {
 			zap.Duration("total_processing_time", spentTime),
 			zap.Duration("sleep_time", sleepTime),
 			zap.Duration("rerun_interval", config.RerunInterval),
+			zap.Duration("extra_delay", config.ExtraDelay.Duration),
 			zap.Error(ctx.Err()),
 		)
 		cancel()
@@ -454,10 +466,42 @@ type connectOptions struct {
 	Insecure bool `yaml:"insecure"`
 }
 
+type Duration struct {
+	time.Duration
+}
+
+func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var text string
+	err := unmarshal(&text)
+	if err != nil {
+		return err
+	}
+	var t time.Duration
+
+	if strings.ToLower(text) == "auto" {
+		config.autoDelay = true
+		return nil
+	}
+	config.autoDelay = false
+	t, err = time.ParseDuration(text)
+	if err != nil {
+		return err
+	}
+
+	d.Duration = t
+
+	return nil
+}
+
+func (d *Duration) MarshalYAML() ([]byte, error) {
+	return yaml.Marshal(d.Duration)
+}
+
 var config = struct {
 	Carbonserver   string         `yaml:"carbonserver"`
 	Cluster        string         `yaml:"cluster"`
 	FetchTimeout   time.Duration  `yaml:"fetch_timeout"`
+	ExtraDelay     Duration       `yaml:"extra_delay"`
 	RerunInterval  time.Duration  `yaml:"rerun_interval"`
 	DryRun         bool           `yaml:"dry_run"`
 	SendHosts      []string       `yaml:"send_hosts"`
@@ -472,9 +516,10 @@ var config = struct {
 	KeepAliveInterval   time.Duration
 
 	Logger []zapwriter.Config `yaml:"logger"`
+	autoDelay     bool
 }{
 	Carbonserver:   "http://localhost:8080",
-	RerunInterval:  10 * time.Minute,
+	RerunInterval:  30 * time.Minute,
 	DryRun:         true,
 	SendHosts:      []string{"127.0.0.1"},
 	Listen:         "[::]:8088",
@@ -489,6 +534,8 @@ var config = struct {
 	KeepAliveInterval:   10 * time.Second,
 
 	Logger: []zapwriter.Config{defaultLoggerConfig},
+
+	autoDelay: true,
 }
 
 func validateConfig() {
@@ -499,6 +546,9 @@ func validateConfig() {
 		logger.Fatal("you must specify carbonserver url in your config")
 	case len(config.SendHosts) == 0:
 		logger.Fatal("no hosts to send data")
+	}
+	if config.ExtraDelay.Duration >= config.RerunInterval {
+		logger.Fatal("extra_delay > rerun_interval")
 	}
 }
 
@@ -532,6 +582,13 @@ func main() {
 	}
 
 	validateConfig()
+	if config.autoDelay {
+		rand.Seed(time.Now().UnixNano())
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		tmp := int64(r.Float64() * config.RerunInterval.Seconds()*1000)*1000000
+		t := time.Duration(tmp)*time.Nanosecond
+		config.ExtraDelay.Duration = t
+	}
 
 	err = zapwriter.ApplyConfig(config.Logger)
 	if err != nil {
