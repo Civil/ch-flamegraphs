@@ -10,8 +10,10 @@
 
 	It has these top-level messages:
 		ProtocolVersionResponse
+		FlameGraphFlat
 		FlameGraph
 		FlameGraphNode
+		FlatMetricInfo
 		MetricInfo
 		MultiMetricStats
 */
@@ -59,6 +61,102 @@ func (m *ProtocolVersionResponse) GetVersion() int64 {
 	return 0
 }
 
+type FlameGraphFlat struct {
+	Timestamp   int64    `protobuf:"varint,1,opt,name=Timestamp,proto3" json:"Timestamp,omitempty"`
+	Cluster     string   `protobuf:"bytes,2,opt,name=Cluster,proto3" json:"Cluster,omitempty"`
+	Server      string   `protobuf:"bytes,3,opt,name=Server,proto3" json:"Server,omitempty"`
+	Id          uint64   `protobuf:"varint,4,opt,name=Id,proto3" json:"Id,omitempty"`
+	Name        string   `protobuf:"bytes,5,opt,name=Name,proto3" json:"Name,omitempty"`
+	Total       uint64   `protobuf:"varint,6,opt,name=Total,proto3" json:"Total,omitempty"`
+	Value       uint64   `protobuf:"varint,7,opt,name=Value,proto3" json:"Value,omitempty"`
+	ParentID    uint64   `protobuf:"varint,8,opt,name=ParentID,proto3" json:"ParentID,omitempty"`
+	ChildrenIds []uint64 `protobuf:"varint,9,rep,packed,name=ChildrenIds" json:"ChildrenIds,omitempty"`
+	Level       int64    `protobuf:"varint,10,opt,name=Level,proto3" json:"Level,omitempty"`
+	ModTime     int64    `protobuf:"varint,11,opt,name=ModTime,proto3" json:"ModTime,omitempty"`
+}
+
+func (m *FlameGraphFlat) Reset()                    { *m = FlameGraphFlat{} }
+func (m *FlameGraphFlat) String() string            { return proto.CompactTextString(m) }
+func (*FlameGraphFlat) ProtoMessage()               {}
+func (*FlameGraphFlat) Descriptor() ([]byte, []int) { return fileDescriptorFlamegraphpb, []int{1} }
+
+func (m *FlameGraphFlat) GetTimestamp() int64 {
+	if m != nil {
+		return m.Timestamp
+	}
+	return 0
+}
+
+func (m *FlameGraphFlat) GetCluster() string {
+	if m != nil {
+		return m.Cluster
+	}
+	return ""
+}
+
+func (m *FlameGraphFlat) GetServer() string {
+	if m != nil {
+		return m.Server
+	}
+	return ""
+}
+
+func (m *FlameGraphFlat) GetId() uint64 {
+	if m != nil {
+		return m.Id
+	}
+	return 0
+}
+
+func (m *FlameGraphFlat) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+func (m *FlameGraphFlat) GetTotal() uint64 {
+	if m != nil {
+		return m.Total
+	}
+	return 0
+}
+
+func (m *FlameGraphFlat) GetValue() uint64 {
+	if m != nil {
+		return m.Value
+	}
+	return 0
+}
+
+func (m *FlameGraphFlat) GetParentID() uint64 {
+	if m != nil {
+		return m.ParentID
+	}
+	return 0
+}
+
+func (m *FlameGraphFlat) GetChildrenIds() []uint64 {
+	if m != nil {
+		return m.ChildrenIds
+	}
+	return nil
+}
+
+func (m *FlameGraphFlat) GetLevel() int64 {
+	if m != nil {
+		return m.Level
+	}
+	return 0
+}
+
+func (m *FlameGraphFlat) GetModTime() int64 {
+	if m != nil {
+		return m.ModTime
+	}
+	return 0
+}
+
 type FlameGraph struct {
 	Timestamp int64           `protobuf:"varint,1,opt,name=Timestamp,proto3" json:"Timestamp,omitempty"`
 	Cluster   string          `protobuf:"bytes,2,opt,name=Cluster,proto3" json:"Cluster,omitempty"`
@@ -69,7 +167,7 @@ type FlameGraph struct {
 func (m *FlameGraph) Reset()                    { *m = FlameGraph{} }
 func (m *FlameGraph) String() string            { return proto.CompactTextString(m) }
 func (*FlameGraph) ProtoMessage()               {}
-func (*FlameGraph) Descriptor() ([]byte, []int) { return fileDescriptorFlamegraphpb, []int{1} }
+func (*FlameGraph) Descriptor() ([]byte, []int) { return fileDescriptorFlamegraphpb, []int{2} }
 
 func (m *FlameGraph) GetTimestamp() int64 {
 	if m != nil {
@@ -116,7 +214,7 @@ type FlameGraphNode struct {
 func (m *FlameGraphNode) Reset()                    { *m = FlameGraphNode{} }
 func (m *FlameGraphNode) String() string            { return proto.CompactTextString(m) }
 func (*FlameGraphNode) ProtoMessage()               {}
-func (*FlameGraphNode) Descriptor() ([]byte, []int) { return fileDescriptorFlamegraphpb, []int{2} }
+func (*FlameGraphNode) Descriptor() ([]byte, []int) { return fileDescriptorFlamegraphpb, []int{3} }
 
 func (m *FlameGraphNode) GetId() uint64 {
 	if m != nil {
@@ -195,6 +293,86 @@ func (m *FlameGraphNode) GetParentID() uint64 {
 	return 0
 }
 
+type FlatMetricInfo struct {
+	Timestamp int64  `protobuf:"varint,1,opt,name=Timestamp,proto3" json:"Timestamp,omitempty"`
+	Cluster   string `protobuf:"bytes,2,opt,name=Cluster,proto3" json:"Cluster,omitempty"`
+	Server    string `protobuf:"bytes,3,opt,name=Server,proto3" json:"Server,omitempty"`
+	Path      string `protobuf:"bytes,4,opt,name=Path,proto3" json:"Path,omitempty"`
+	ModTime   int64  `protobuf:"varint,5,opt,name=ModTime,proto3" json:"ModTime,omitempty"`
+	ATime     int64  `protobuf:"varint,6,opt,name=ATime,proto3" json:"ATime,omitempty"`
+	RdTime    int64  `protobuf:"varint,7,opt,name=RdTime,proto3" json:"RdTime,omitempty"`
+	Size_     int64  `protobuf:"varint,8,opt,name=Size,proto3" json:"Size,omitempty"`
+	Count     int64  `protobuf:"varint,9,opt,name=Count,proto3" json:"Count,omitempty"`
+}
+
+func (m *FlatMetricInfo) Reset()                    { *m = FlatMetricInfo{} }
+func (m *FlatMetricInfo) String() string            { return proto.CompactTextString(m) }
+func (*FlatMetricInfo) ProtoMessage()               {}
+func (*FlatMetricInfo) Descriptor() ([]byte, []int) { return fileDescriptorFlamegraphpb, []int{4} }
+
+func (m *FlatMetricInfo) GetTimestamp() int64 {
+	if m != nil {
+		return m.Timestamp
+	}
+	return 0
+}
+
+func (m *FlatMetricInfo) GetCluster() string {
+	if m != nil {
+		return m.Cluster
+	}
+	return ""
+}
+
+func (m *FlatMetricInfo) GetServer() string {
+	if m != nil {
+		return m.Server
+	}
+	return ""
+}
+
+func (m *FlatMetricInfo) GetPath() string {
+	if m != nil {
+		return m.Path
+	}
+	return ""
+}
+
+func (m *FlatMetricInfo) GetModTime() int64 {
+	if m != nil {
+		return m.ModTime
+	}
+	return 0
+}
+
+func (m *FlatMetricInfo) GetATime() int64 {
+	if m != nil {
+		return m.ATime
+	}
+	return 0
+}
+
+func (m *FlatMetricInfo) GetRdTime() int64 {
+	if m != nil {
+		return m.RdTime
+	}
+	return 0
+}
+
+func (m *FlatMetricInfo) GetSize_() int64 {
+	if m != nil {
+		return m.Size_
+	}
+	return 0
+}
+
+func (m *FlatMetricInfo) GetCount() int64 {
+	if m != nil {
+		return m.Count
+	}
+	return 0
+}
+
 type MetricInfo struct {
 	Path    string `protobuf:"bytes,1,opt,name=Path,proto3" json:"Path,omitempty"`
 	ModTime int64  `protobuf:"varint,2,opt,name=ModTime,proto3" json:"ModTime,omitempty"`
@@ -207,7 +385,7 @@ type MetricInfo struct {
 func (m *MetricInfo) Reset()                    { *m = MetricInfo{} }
 func (m *MetricInfo) String() string            { return proto.CompactTextString(m) }
 func (*MetricInfo) ProtoMessage()               {}
-func (*MetricInfo) Descriptor() ([]byte, []int) { return fileDescriptorFlamegraphpb, []int{3} }
+func (*MetricInfo) Descriptor() ([]byte, []int) { return fileDescriptorFlamegraphpb, []int{5} }
 
 func (m *MetricInfo) GetPath() string {
 	if m != nil {
@@ -261,7 +439,7 @@ type MultiMetricStats struct {
 func (m *MultiMetricStats) Reset()                    { *m = MultiMetricStats{} }
 func (m *MultiMetricStats) String() string            { return proto.CompactTextString(m) }
 func (*MultiMetricStats) ProtoMessage()               {}
-func (*MultiMetricStats) Descriptor() ([]byte, []int) { return fileDescriptorFlamegraphpb, []int{4} }
+func (*MultiMetricStats) Descriptor() ([]byte, []int) { return fileDescriptorFlamegraphpb, []int{6} }
 
 func (m *MultiMetricStats) GetTimestamp() int64 {
 	if m != nil {
@@ -293,8 +471,10 @@ func (m *MultiMetricStats) GetMetrics() []MetricInfo {
 
 func init() {
 	proto.RegisterType((*ProtocolVersionResponse)(nil), "flamegraphpb.ProtocolVersionResponse")
+	proto.RegisterType((*FlameGraphFlat)(nil), "flamegraphpb.FlameGraphFlat")
 	proto.RegisterType((*FlameGraph)(nil), "flamegraphpb.FlameGraph")
 	proto.RegisterType((*FlameGraphNode)(nil), "flamegraphpb.FlameGraphNode")
+	proto.RegisterType((*FlatMetricInfo)(nil), "flamegraphpb.FlatMetricInfo")
 	proto.RegisterType((*MetricInfo)(nil), "flamegraphpb.MetricInfo")
 	proto.RegisterType((*MultiMetricStats)(nil), "flamegraphpb.MultiMetricStats")
 }
@@ -312,7 +492,8 @@ const _ = grpc.SupportPackageIsVersion4
 type FlamegraphV1Client interface {
 	GetVersion(ctx context.Context, in *google_protobuf1.Empty, opts ...grpc.CallOption) (*ProtocolVersionResponse, error)
 	SendFlamegraph(ctx context.Context, in *FlameGraph, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
-	SendMetricsStats(ctx context.Context, in *MultiMetricStats, opts ...grpc.CallOption) (*google_protobuf1.Empty, error)
+	SendMetricsStats(ctx context.Context, opts ...grpc.CallOption) (FlamegraphV1_SendMetricsStatsClient, error)
+	SendFlatFlamegraph(ctx context.Context, opts ...grpc.CallOption) (FlamegraphV1_SendFlatFlamegraphClient, error)
 }
 
 type flamegraphV1Client struct {
@@ -341,13 +522,72 @@ func (c *flamegraphV1Client) SendFlamegraph(ctx context.Context, in *FlameGraph,
 	return out, nil
 }
 
-func (c *flamegraphV1Client) SendMetricsStats(ctx context.Context, in *MultiMetricStats, opts ...grpc.CallOption) (*google_protobuf1.Empty, error) {
-	out := new(google_protobuf1.Empty)
-	err := grpc.Invoke(ctx, "/flamegraphpb.FlamegraphV1/SendMetricsStats", in, out, c.cc, opts...)
+func (c *flamegraphV1Client) SendMetricsStats(ctx context.Context, opts ...grpc.CallOption) (FlamegraphV1_SendMetricsStatsClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_FlamegraphV1_serviceDesc.Streams[0], c.cc, "/flamegraphpb.FlamegraphV1/SendMetricsStats", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &flamegraphV1SendMetricsStatsClient{stream}
+	return x, nil
+}
+
+type FlamegraphV1_SendMetricsStatsClient interface {
+	Send(*FlatMetricInfo) error
+	CloseAndRecv() (*google_protobuf1.Empty, error)
+	grpc.ClientStream
+}
+
+type flamegraphV1SendMetricsStatsClient struct {
+	grpc.ClientStream
+}
+
+func (x *flamegraphV1SendMetricsStatsClient) Send(m *FlatMetricInfo) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *flamegraphV1SendMetricsStatsClient) CloseAndRecv() (*google_protobuf1.Empty, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(google_protobuf1.Empty)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *flamegraphV1Client) SendFlatFlamegraph(ctx context.Context, opts ...grpc.CallOption) (FlamegraphV1_SendFlatFlamegraphClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_FlamegraphV1_serviceDesc.Streams[1], c.cc, "/flamegraphpb.FlamegraphV1/SendFlatFlamegraph", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &flamegraphV1SendFlatFlamegraphClient{stream}
+	return x, nil
+}
+
+type FlamegraphV1_SendFlatFlamegraphClient interface {
+	Send(*FlameGraphFlat) error
+	CloseAndRecv() (*google_protobuf1.Empty, error)
+	grpc.ClientStream
+}
+
+type flamegraphV1SendFlatFlamegraphClient struct {
+	grpc.ClientStream
+}
+
+func (x *flamegraphV1SendFlatFlamegraphClient) Send(m *FlameGraphFlat) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *flamegraphV1SendFlatFlamegraphClient) CloseAndRecv() (*google_protobuf1.Empty, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(google_protobuf1.Empty)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // Server API for FlamegraphV1 service
@@ -355,7 +595,8 @@ func (c *flamegraphV1Client) SendMetricsStats(ctx context.Context, in *MultiMetr
 type FlamegraphV1Server interface {
 	GetVersion(context.Context, *google_protobuf1.Empty) (*ProtocolVersionResponse, error)
 	SendFlamegraph(context.Context, *FlameGraph) (*google_protobuf1.Empty, error)
-	SendMetricsStats(context.Context, *MultiMetricStats) (*google_protobuf1.Empty, error)
+	SendMetricsStats(FlamegraphV1_SendMetricsStatsServer) error
+	SendFlatFlamegraph(FlamegraphV1_SendFlatFlamegraphServer) error
 }
 
 func RegisterFlamegraphV1Server(s *grpc.Server, srv FlamegraphV1Server) {
@@ -398,22 +639,56 @@ func _FlamegraphV1_SendFlamegraph_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _FlamegraphV1_SendMetricsStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MultiMetricStats)
-	if err := dec(in); err != nil {
+func _FlamegraphV1_SendMetricsStats_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(FlamegraphV1Server).SendMetricsStats(&flamegraphV1SendMetricsStatsServer{stream})
+}
+
+type FlamegraphV1_SendMetricsStatsServer interface {
+	SendAndClose(*google_protobuf1.Empty) error
+	Recv() (*FlatMetricInfo, error)
+	grpc.ServerStream
+}
+
+type flamegraphV1SendMetricsStatsServer struct {
+	grpc.ServerStream
+}
+
+func (x *flamegraphV1SendMetricsStatsServer) SendAndClose(m *google_protobuf1.Empty) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *flamegraphV1SendMetricsStatsServer) Recv() (*FlatMetricInfo, error) {
+	m := new(FlatMetricInfo)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
-		return srv.(FlamegraphV1Server).SendMetricsStats(ctx, in)
+	return m, nil
+}
+
+func _FlamegraphV1_SendFlatFlamegraph_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(FlamegraphV1Server).SendFlatFlamegraph(&flamegraphV1SendFlatFlamegraphServer{stream})
+}
+
+type FlamegraphV1_SendFlatFlamegraphServer interface {
+	SendAndClose(*google_protobuf1.Empty) error
+	Recv() (*FlameGraphFlat, error)
+	grpc.ServerStream
+}
+
+type flamegraphV1SendFlatFlamegraphServer struct {
+	grpc.ServerStream
+}
+
+func (x *flamegraphV1SendFlatFlamegraphServer) SendAndClose(m *google_protobuf1.Empty) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *flamegraphV1SendFlatFlamegraphServer) Recv() (*FlameGraphFlat, error) {
+	m := new(FlameGraphFlat)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
 	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/flamegraphpb.FlamegraphV1/SendMetricsStats",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(FlamegraphV1Server).SendMetricsStats(ctx, req.(*MultiMetricStats))
-	}
-	return interceptor(ctx, in, info, handler)
+	return m, nil
 }
 
 var _FlamegraphV1_serviceDesc = grpc.ServiceDesc{
@@ -428,12 +703,19 @@ var _FlamegraphV1_serviceDesc = grpc.ServiceDesc{
 			MethodName: "SendFlamegraph",
 			Handler:    _FlamegraphV1_SendFlamegraph_Handler,
 		},
+	},
+	Streams: []grpc.StreamDesc{
 		{
-			MethodName: "SendMetricsStats",
-			Handler:    _FlamegraphV1_SendMetricsStats_Handler,
+			StreamName:    "SendMetricsStats",
+			Handler:       _FlamegraphV1_SendMetricsStats_Handler,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "SendFlatFlamegraph",
+			Handler:       _FlamegraphV1_SendFlatFlamegraph_Handler,
+			ClientStreams: true,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
 	Metadata: "flamegraphpb.proto",
 }
 
@@ -456,6 +738,94 @@ func (m *ProtocolVersionResponse) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x8
 		i++
 		i = encodeVarintFlamegraphpb(dAtA, i, uint64(m.Version))
+	}
+	return i, nil
+}
+
+func (m *FlameGraphFlat) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *FlameGraphFlat) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Timestamp != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(m.Timestamp))
+	}
+	if len(m.Cluster) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(len(m.Cluster)))
+		i += copy(dAtA[i:], m.Cluster)
+	}
+	if len(m.Server) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(len(m.Server)))
+		i += copy(dAtA[i:], m.Server)
+	}
+	if m.Id != 0 {
+		dAtA[i] = 0x20
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(m.Id))
+	}
+	if len(m.Name) > 0 {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(len(m.Name)))
+		i += copy(dAtA[i:], m.Name)
+	}
+	if m.Total != 0 {
+		dAtA[i] = 0x30
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(m.Total))
+	}
+	if m.Value != 0 {
+		dAtA[i] = 0x38
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(m.Value))
+	}
+	if m.ParentID != 0 {
+		dAtA[i] = 0x40
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(m.ParentID))
+	}
+	if len(m.ChildrenIds) > 0 {
+		dAtA2 := make([]byte, len(m.ChildrenIds)*10)
+		var j1 int
+		for _, num := range m.ChildrenIds {
+			for num >= 1<<7 {
+				dAtA2[j1] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j1++
+			}
+			dAtA2[j1] = uint8(num)
+			j1++
+		}
+		dAtA[i] = 0x4a
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(j1))
+		i += copy(dAtA[i:], dAtA2[:j1])
+	}
+	if m.Level != 0 {
+		dAtA[i] = 0x50
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(m.Level))
+	}
+	if m.ModTime != 0 {
+		dAtA[i] = 0x58
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(m.ModTime))
 	}
 	return i, nil
 }
@@ -496,11 +866,11 @@ func (m *FlameGraph) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x22
 		i++
 		i = encodeVarintFlamegraphpb(dAtA, i, uint64(m.Tree.Size()))
-		n1, err := m.Tree.MarshalTo(dAtA[i:])
+		n3, err := m.Tree.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n1
+		i += n3
 	}
 	return i, nil
 }
@@ -574,26 +944,92 @@ func (m *FlameGraphNode) MarshalTo(dAtA []byte) (int, error) {
 		}
 	}
 	if len(m.ChildrenIds) > 0 {
-		dAtA3 := make([]byte, len(m.ChildrenIds)*10)
-		var j2 int
+		dAtA5 := make([]byte, len(m.ChildrenIds)*10)
+		var j4 int
 		for _, num := range m.ChildrenIds {
 			for num >= 1<<7 {
-				dAtA3[j2] = uint8(uint64(num)&0x7f | 0x80)
+				dAtA5[j4] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
-				j2++
+				j4++
 			}
-			dAtA3[j2] = uint8(num)
-			j2++
+			dAtA5[j4] = uint8(num)
+			j4++
 		}
 		dAtA[i] = 0x52
 		i++
-		i = encodeVarintFlamegraphpb(dAtA, i, uint64(j2))
-		i += copy(dAtA[i:], dAtA3[:j2])
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(j4))
+		i += copy(dAtA[i:], dAtA5[:j4])
 	}
 	if m.ParentID != 0 {
 		dAtA[i] = 0x58
 		i++
 		i = encodeVarintFlamegraphpb(dAtA, i, uint64(m.ParentID))
+	}
+	return i, nil
+}
+
+func (m *FlatMetricInfo) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *FlatMetricInfo) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Timestamp != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(m.Timestamp))
+	}
+	if len(m.Cluster) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(len(m.Cluster)))
+		i += copy(dAtA[i:], m.Cluster)
+	}
+	if len(m.Server) > 0 {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(len(m.Server)))
+		i += copy(dAtA[i:], m.Server)
+	}
+	if len(m.Path) > 0 {
+		dAtA[i] = 0x22
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(len(m.Path)))
+		i += copy(dAtA[i:], m.Path)
+	}
+	if m.ModTime != 0 {
+		dAtA[i] = 0x28
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(m.ModTime))
+	}
+	if m.ATime != 0 {
+		dAtA[i] = 0x30
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(m.ATime))
+	}
+	if m.RdTime != 0 {
+		dAtA[i] = 0x38
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(m.RdTime))
+	}
+	if m.Size_ != 0 {
+		dAtA[i] = 0x40
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(m.Size_))
+	}
+	if m.Count != 0 {
+		dAtA[i] = 0x48
+		i++
+		i = encodeVarintFlamegraphpb(dAtA, i, uint64(m.Count))
 	}
 	return i, nil
 }
@@ -730,6 +1166,52 @@ func (m *ProtocolVersionResponse) Size() (n int) {
 	return n
 }
 
+func (m *FlameGraphFlat) Size() (n int) {
+	var l int
+	_ = l
+	if m.Timestamp != 0 {
+		n += 1 + sovFlamegraphpb(uint64(m.Timestamp))
+	}
+	l = len(m.Cluster)
+	if l > 0 {
+		n += 1 + l + sovFlamegraphpb(uint64(l))
+	}
+	l = len(m.Server)
+	if l > 0 {
+		n += 1 + l + sovFlamegraphpb(uint64(l))
+	}
+	if m.Id != 0 {
+		n += 1 + sovFlamegraphpb(uint64(m.Id))
+	}
+	l = len(m.Name)
+	if l > 0 {
+		n += 1 + l + sovFlamegraphpb(uint64(l))
+	}
+	if m.Total != 0 {
+		n += 1 + sovFlamegraphpb(uint64(m.Total))
+	}
+	if m.Value != 0 {
+		n += 1 + sovFlamegraphpb(uint64(m.Value))
+	}
+	if m.ParentID != 0 {
+		n += 1 + sovFlamegraphpb(uint64(m.ParentID))
+	}
+	if len(m.ChildrenIds) > 0 {
+		l = 0
+		for _, e := range m.ChildrenIds {
+			l += sovFlamegraphpb(uint64(e))
+		}
+		n += 1 + sovFlamegraphpb(uint64(l)) + l
+	}
+	if m.Level != 0 {
+		n += 1 + sovFlamegraphpb(uint64(m.Level))
+	}
+	if m.ModTime != 0 {
+		n += 1 + sovFlamegraphpb(uint64(m.ModTime))
+	}
+	return n
+}
+
 func (m *FlameGraph) Size() (n int) {
 	var l int
 	_ = l
@@ -794,6 +1276,42 @@ func (m *FlameGraphNode) Size() (n int) {
 	}
 	if m.ParentID != 0 {
 		n += 1 + sovFlamegraphpb(uint64(m.ParentID))
+	}
+	return n
+}
+
+func (m *FlatMetricInfo) Size() (n int) {
+	var l int
+	_ = l
+	if m.Timestamp != 0 {
+		n += 1 + sovFlamegraphpb(uint64(m.Timestamp))
+	}
+	l = len(m.Cluster)
+	if l > 0 {
+		n += 1 + l + sovFlamegraphpb(uint64(l))
+	}
+	l = len(m.Server)
+	if l > 0 {
+		n += 1 + l + sovFlamegraphpb(uint64(l))
+	}
+	l = len(m.Path)
+	if l > 0 {
+		n += 1 + l + sovFlamegraphpb(uint64(l))
+	}
+	if m.ModTime != 0 {
+		n += 1 + sovFlamegraphpb(uint64(m.ModTime))
+	}
+	if m.ATime != 0 {
+		n += 1 + sovFlamegraphpb(uint64(m.ATime))
+	}
+	if m.RdTime != 0 {
+		n += 1 + sovFlamegraphpb(uint64(m.RdTime))
+	}
+	if m.Size_ != 0 {
+		n += 1 + sovFlamegraphpb(uint64(m.Size_))
+	}
+	if m.Count != 0 {
+		n += 1 + sovFlamegraphpb(uint64(m.Count))
 	}
 	return n
 }
@@ -903,6 +1421,338 @@ func (m *ProtocolVersionResponse) Unmarshal(dAtA []byte) error {
 				b := dAtA[iNdEx]
 				iNdEx++
 				m.Version |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipFlamegraphpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthFlamegraphpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *FlameGraphFlat) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowFlamegraphpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: FlameGraphFlat: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: FlameGraphFlat: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Timestamp", wireType)
+			}
+			m.Timestamp = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Timestamp |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Cluster", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthFlamegraphpb
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Cluster = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Server", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthFlamegraphpb
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Server = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Id", wireType)
+			}
+			m.Id = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Id |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthFlamegraphpb
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Total", wireType)
+			}
+			m.Total = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Total |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 7:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
+			}
+			m.Value = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Value |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 8:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ParentID", wireType)
+			}
+			m.ParentID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ParentID |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 9:
+			if wireType == 0 {
+				var v uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowFlamegraphpb
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					v |= (uint64(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				m.ChildrenIds = append(m.ChildrenIds, v)
+			} else if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowFlamegraphpb
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					packedLen |= (int(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				if packedLen < 0 {
+					return ErrInvalidLengthFlamegraphpb
+				}
+				postIndex := iNdEx + packedLen
+				if postIndex > l {
+					return io.ErrUnexpectedEOF
+				}
+				for iNdEx < postIndex {
+					var v uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowFlamegraphpb
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= (uint64(b) & 0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					m.ChildrenIds = append(m.ChildrenIds, v)
+				}
+			} else {
+				return fmt.Errorf("proto: wrong wireType = %d for field ChildrenIds", wireType)
+			}
+		case 10:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Level", wireType)
+			}
+			m.Level = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Level |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 11:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ModTime", wireType)
+			}
+			m.ModTime = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ModTime |= (int64(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -1412,6 +2262,257 @@ func (m *FlameGraphNode) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *FlatMetricInfo) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowFlamegraphpb
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: FlatMetricInfo: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: FlatMetricInfo: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Timestamp", wireType)
+			}
+			m.Timestamp = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Timestamp |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Cluster", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthFlamegraphpb
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Cluster = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Server", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthFlamegraphpb
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Server = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Path", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthFlamegraphpb
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Path = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ModTime", wireType)
+			}
+			m.ModTime = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ModTime |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ATime", wireType)
+			}
+			m.ATime = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ATime |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 7:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RdTime", wireType)
+			}
+			m.RdTime = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.RdTime |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 8:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Size_", wireType)
+			}
+			m.Size_ = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Size_ |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 9:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Count", wireType)
+			}
+			m.Count = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowFlamegraphpb
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Count |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipFlamegraphpb(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthFlamegraphpb
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *MetricInfo) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -1852,40 +2953,47 @@ var (
 func init() { proto.RegisterFile("flamegraphpb.proto", fileDescriptorFlamegraphpb) }
 
 var fileDescriptorFlamegraphpb = []byte{
-	// 554 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x53, 0xcd, 0x6a, 0xdb, 0x40,
-	0x10, 0xb6, 0xec, 0x8d, 0x7f, 0xc6, 0xc6, 0x84, 0xa5, 0xa4, 0x8b, 0x1b, 0x5c, 0x21, 0x28, 0xf8,
-	0x52, 0xa5, 0x4d, 0x2e, 0xb9, 0x36, 0x4e, 0x13, 0x0c, 0x75, 0x30, 0x6b, 0xe3, 0xbb, 0x6c, 0xad,
-	0x65, 0x81, 0xa4, 0x15, 0xd2, 0x2a, 0xd0, 0x3e, 0x44, 0x0f, 0x3d, 0xf7, 0x39, 0xfa, 0x0c, 0x39,
-	0xf6, 0x09, 0x4a, 0xf1, 0x1b, 0xf4, 0x0d, 0xca, 0xee, 0x4a, 0x96, 0x15, 0x30, 0xbd, 0xf4, 0x36,
-	0xdf, 0x37, 0xb3, 0x33, 0xf3, 0x7d, 0xec, 0x00, 0xde, 0x04, 0x4e, 0xc8, 0xbc, 0xc4, 0x89, 0xb7,
-	0xf1, 0xca, 0x8e, 0x13, 0x2e, 0x38, 0xee, 0x1d, 0x72, 0x83, 0xb7, 0x9e, 0x2f, 0xb6, 0xd9, 0xca,
-	0x5e, 0xf3, 0xf0, 0xc2, 0xe3, 0x1e, 0xbf, 0x50, 0x45, 0xab, 0x6c, 0xa3, 0x90, 0x02, 0x2a, 0xd2,
-	0x8f, 0x07, 0xaf, 0x3c, 0xce, 0xbd, 0x80, 0x95, 0x55, 0x2c, 0x8c, 0xc5, 0x67, 0x9d, 0xb4, 0xae,
-	0xe0, 0xe5, 0x4c, 0x06, 0x6b, 0x1e, 0x2c, 0x59, 0x92, 0xfa, 0x3c, 0xa2, 0x2c, 0x8d, 0x79, 0x94,
-	0x32, 0x4c, 0xa0, 0xf5, 0xa8, 0x29, 0x62, 0x98, 0xc6, 0xa8, 0x41, 0x0b, 0x68, 0x7d, 0x35, 0x00,
-	0xee, 0xe4, 0x46, 0xf7, 0x72, 0x23, 0x7c, 0x0e, 0x9d, 0x85, 0x1f, 0xb2, 0x54, 0x38, 0x61, 0x9c,
-	0x97, 0x96, 0x84, 0x6c, 0x33, 0x0e, 0xb2, 0x54, 0xb0, 0x84, 0xd4, 0x4d, 0x63, 0xd4, 0xa1, 0x05,
-	0xc4, 0x67, 0xd0, 0x9c, 0xb3, 0xe4, 0x91, 0x25, 0xa4, 0xa1, 0x12, 0x39, 0xc2, 0xef, 0x00, 0x2d,
-	0x12, 0xc6, 0x08, 0x32, 0x8d, 0x51, 0xf7, 0xf2, 0xdc, 0xae, 0x18, 0x52, 0xce, 0x7d, 0xe0, 0x2e,
-	0xa3, 0xaa, 0xd2, 0xfa, 0x51, 0x87, 0x7e, 0x35, 0x81, 0xfb, 0x50, 0x9f, 0xb8, 0x6a, 0x1b, 0x44,
-	0xeb, 0x13, 0x17, 0x63, 0x40, 0x0f, 0x4e, 0xc8, 0xf2, 0x1d, 0x54, 0x8c, 0x5f, 0xc0, 0xc9, 0x82,
-	0x0b, 0x27, 0x50, 0xf3, 0x11, 0xd5, 0x40, 0xb2, 0x4b, 0x27, 0xc8, 0xf4, 0x7c, 0x44, 0x35, 0x90,
-	0x32, 0xa6, 0xdc, 0x95, 0xb2, 0xc8, 0x89, 0x76, 0x23, 0x87, 0x52, 0x06, 0xd5, 0x89, 0xa6, 0x4a,
-	0xe4, 0x48, 0xf6, 0xf9, 0xa0, 0xe8, 0x96, 0xa2, 0x35, 0x90, 0xec, 0x98, 0x67, 0x91, 0x20, 0x6d,
-	0xdd, 0x5d, 0x01, 0x7c, 0x0d, 0xed, 0xf1, 0xd6, 0x0f, 0xdc, 0x84, 0x45, 0xa4, 0x63, 0x36, 0xfe,
-	0x29, 0x7b, 0x5f, 0x8d, 0x4d, 0xe8, 0x16, 0xf1, 0xc4, 0x4d, 0x09, 0x98, 0x8d, 0x11, 0xa2, 0x87,
-	0x14, 0x1e, 0x40, 0x7b, 0xe6, 0x24, 0x2c, 0x12, 0x93, 0x5b, 0xd2, 0x55, 0x43, 0xf7, 0xd8, 0xfa,
-	0x66, 0x00, 0x4c, 0x99, 0x48, 0xfc, 0xf5, 0x24, 0xda, 0x70, 0x69, 0xd2, 0xcc, 0x11, 0x5b, 0x65,
-	0x5b, 0x87, 0xaa, 0xf8, 0x50, 0x78, 0xbd, 0x2a, 0x7c, 0x2f, 0xb0, 0x71, 0x28, 0xb0, 0xb4, 0x03,
-	0x55, 0xec, 0xc0, 0x80, 0xe6, 0xfe, 0x97, 0xc2, 0x3d, 0x15, 0x97, 0x66, 0x68, 0xe7, 0x34, 0xb0,
-	0xbe, 0x1b, 0x70, 0x3a, 0xcd, 0x02, 0xe1, 0xeb, 0xcd, 0xe6, 0xc2, 0x11, 0xe9, 0x7f, 0xff, 0x64,
-	0xd7, 0xd0, 0x0a, 0x55, 0xfb, 0x94, 0x20, 0x65, 0x38, 0xa9, 0x1a, 0x5e, 0xba, 0x72, 0x83, 0x9e,
-	0x7e, 0xbd, 0xae, 0xd1, 0xa2, 0xfc, 0xf2, 0x8f, 0x01, 0xbd, 0xbb, 0x7d, 0xe9, 0xf2, 0x3d, 0x9e,
-	0x02, 0xdc, 0x33, 0x91, 0x9f, 0x0f, 0x3e, 0xb3, 0xf5, 0xbd, 0xd9, 0xc5, 0xbd, 0xd9, 0x1f, 0xe5,
-	0xbd, 0x0d, 0xde, 0x54, 0xfb, 0x1f, 0xb9, 0x3a, 0xab, 0x86, 0x6f, 0xa1, 0x3f, 0x67, 0x91, 0x5b,
-	0x8e, 0xc0, 0xe4, 0xd8, 0x5f, 0x18, 0x1c, 0x19, 0x66, 0xd5, 0xf0, 0x27, 0x38, 0x95, 0x5d, 0xb4,
-	0x8c, 0x54, 0x7b, 0x38, 0x7c, 0x26, 0xf1, 0x99, 0xc7, 0xc7, 0xbb, 0xdd, 0xf4, 0x9e, 0x76, 0x43,
-	0xe3, 0xe7, 0x6e, 0x68, 0xfc, 0xde, 0x0d, 0x8d, 0x55, 0x53, 0xe5, 0xaf, 0xfe, 0x06, 0x00, 0x00,
-	0xff, 0xff, 0x05, 0x25, 0x82, 0xe9, 0xab, 0x04, 0x00, 0x00,
+	// 657 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x94, 0xcf, 0x4e, 0xdb, 0x40,
+	0x10, 0xc6, 0x59, 0xc7, 0x49, 0xc8, 0x04, 0x21, 0xb4, 0xaa, 0xe8, 0x2a, 0x45, 0x34, 0xb2, 0x54,
+	0x29, 0x97, 0x86, 0x16, 0x2e, 0x5c, 0xf9, 0x53, 0x50, 0x24, 0x82, 0x90, 0x83, 0xb8, 0x3b, 0x78,
+	0x49, 0x2c, 0xd9, 0xde, 0xc8, 0x5e, 0x23, 0xb5, 0x0f, 0xd1, 0x43, 0xcf, 0x55, 0x1f, 0xa3, 0xf7,
+	0xde, 0x38, 0xf6, 0x09, 0xaa, 0x8a, 0x43, 0x9f, 0xa3, 0xda, 0x59, 0x3b, 0xb6, 0x8b, 0x4d, 0x2f,
+	0xb9, 0xed, 0x37, 0x3b, 0x19, 0x7f, 0xf3, 0x9b, 0xc9, 0x02, 0xbd, 0xf3, 0x9d, 0x80, 0xcf, 0x22,
+	0x67, 0x31, 0x5f, 0x4c, 0x87, 0x8b, 0x48, 0x48, 0x41, 0x37, 0x8a, 0xb1, 0xde, 0xdb, 0x99, 0x27,
+	0xe7, 0xc9, 0x74, 0x78, 0x2b, 0x82, 0xbd, 0x99, 0x98, 0x89, 0x3d, 0x4c, 0x9a, 0x26, 0x77, 0xa8,
+	0x50, 0xe0, 0x49, 0xff, 0xb8, 0xf7, 0x6a, 0x26, 0xc4, 0xcc, 0xe7, 0x79, 0x16, 0x0f, 0x16, 0xf2,
+	0xa3, 0xbe, 0xb4, 0x0e, 0xe0, 0xe5, 0x95, 0x3a, 0xdc, 0x0a, 0xff, 0x86, 0x47, 0xb1, 0x27, 0x42,
+	0x9b, 0xc7, 0x0b, 0x11, 0xc6, 0x9c, 0x32, 0x68, 0xdf, 0xeb, 0x10, 0x23, 0x7d, 0x32, 0x68, 0xd8,
+	0x99, 0xb4, 0xbe, 0x19, 0xb0, 0x79, 0xa6, 0x1c, 0x9d, 0x2b, 0x47, 0x67, 0xbe, 0x23, 0xe9, 0x0e,
+	0x74, 0xae, 0xbd, 0x80, 0xc7, 0xd2, 0x09, 0x16, 0x69, 0x7a, 0x1e, 0x50, 0xa5, 0x4e, 0xfc, 0x24,
+	0x96, 0x3c, 0x62, 0x46, 0x9f, 0x0c, 0x3a, 0x76, 0x26, 0xe9, 0x36, 0xb4, 0x26, 0x3c, 0xba, 0xe7,
+	0x11, 0x6b, 0xe0, 0x45, 0xaa, 0xe8, 0x26, 0x18, 0x23, 0x97, 0x99, 0x7d, 0x32, 0x30, 0x6d, 0x63,
+	0xe4, 0x52, 0x0a, 0xe6, 0xa5, 0x13, 0x70, 0xd6, 0xc4, 0x2c, 0x3c, 0xd3, 0x17, 0xd0, 0xbc, 0x16,
+	0xd2, 0xf1, 0x59, 0x0b, 0xd3, 0xb4, 0x50, 0xd1, 0x1b, 0xc7, 0x4f, 0x38, 0x6b, 0xeb, 0x28, 0x0a,
+	0xda, 0x83, 0xf5, 0x2b, 0x27, 0xe2, 0xa1, 0x1c, 0x9d, 0xb2, 0x75, 0xbc, 0x58, 0x6a, 0xda, 0x87,
+	0xee, 0xc9, 0xdc, 0xf3, 0xdd, 0x88, 0x87, 0x23, 0x37, 0x66, 0x9d, 0x7e, 0x63, 0x60, 0xda, 0xc5,
+	0x90, 0xaa, 0x79, 0xc1, 0xef, 0xb9, 0xcf, 0x00, 0x3b, 0xd3, 0x42, 0x75, 0x35, 0x16, 0xae, 0xea,
+	0x92, 0x75, 0x35, 0xa0, 0x54, 0x5a, 0x9f, 0x09, 0x40, 0x0e, 0x68, 0xe5, 0x70, 0xde, 0x81, 0x79,
+	0x1d, 0x71, 0x8e, 0x78, 0xba, 0xfb, 0x3b, 0xc3, 0xd2, 0xc6, 0xe4, 0xdf, 0xbd, 0x14, 0x2e, 0xb7,
+	0x31, 0xd3, 0xfa, 0x5e, 0x9a, 0x98, 0xba, 0x48, 0x09, 0x93, 0x27, 0x84, 0x8d, 0x2a, 0xc2, 0x8d,
+	0x4a, 0xc2, 0x66, 0x91, 0x70, 0x81, 0x46, 0xb3, 0x44, 0x43, 0xb5, 0x61, 0xeb, 0x8b, 0x16, 0x5e,
+	0xa4, 0x4a, 0xd5, 0x39, 0xc2, 0x70, 0x5b, 0x53, 0x3d, 0xca, 0xa2, 0x27, 0x22, 0x09, 0x65, 0x3a,
+	0x26, 0x2d, 0xe8, 0x21, 0xac, 0x67, 0x03, 0xc1, 0x01, 0xfd, 0xaf, 0xed, 0x65, 0xf6, 0xbf, 0xd3,
+	0x85, 0xa7, 0xd3, 0x2d, 0xee, 0x46, 0xb7, 0xbc, 0x1b, 0xd6, 0x1f, 0x82, 0xe0, 0xe4, 0x98, 0xcb,
+	0xc8, 0xbb, 0x1d, 0x85, 0x77, 0x62, 0xe5, 0xd3, 0xa4, 0x60, 0x5e, 0x39, 0x72, 0x8e, 0x34, 0x3b,
+	0x36, 0x9e, 0x9f, 0x81, 0xb9, 0x84, 0xd6, 0x2a, 0x42, 0xcb, 0x11, 0xb7, 0x4b, 0x88, 0x29, 0x98,
+	0x13, 0xef, 0x13, 0x47, 0x96, 0x0d, 0x1b, 0xcf, 0x39, 0xe0, 0x8e, 0xae, 0x80, 0xc2, 0xfa, 0x42,
+	0x00, 0x0a, 0x4d, 0x66, 0xa6, 0x48, 0xb5, 0x29, 0xa3, 0xc6, 0x54, 0xa3, 0xda, 0x94, 0x59, 0x69,
+	0xaa, 0x59, 0x65, 0xaa, 0x55, 0x34, 0xf5, 0x95, 0xc0, 0xd6, 0x38, 0xf1, 0xa5, 0xa7, 0x9d, 0x4d,
+	0xa4, 0x23, 0xe3, 0x95, 0xf3, 0x3f, 0x84, 0x76, 0x80, 0xe5, 0x63, 0x66, 0xe2, 0x66, 0xb1, 0xf2,
+	0x66, 0xe5, 0x54, 0x8e, 0xcd, 0x87, 0x5f, 0xaf, 0xd7, 0xec, 0x2c, 0x7d, 0xff, 0x87, 0x01, 0x1b,
+	0x67, 0xcb, 0xd4, 0x9b, 0xf7, 0x74, 0x0c, 0x70, 0xce, 0x65, 0xfa, 0x90, 0xd2, 0xed, 0xa1, 0x7e,
+	0x79, 0x87, 0xd9, 0xcb, 0x3b, 0xfc, 0xa0, 0x5e, 0xde, 0xde, 0x9b, 0x72, 0xfd, 0x9a, 0xf7, 0xd7,
+	0x5a, 0xa3, 0xa7, 0xb0, 0x39, 0xe1, 0xa1, 0x9b, 0x7f, 0x82, 0xb2, 0xba, 0xa5, 0xef, 0xd5, 0x7c,
+	0xcc, 0x5a, 0xa3, 0x17, 0xb0, 0xa5, 0xaa, 0xe8, 0x36, 0xe2, 0x94, 0xe1, 0x93, 0x3a, 0x85, 0x0d,
+	0xaf, 0xaf, 0x35, 0x20, 0xf4, 0x12, 0x68, 0xea, 0x49, 0x16, 0x7c, 0xd5, 0xfe, 0x19, 0x55, 0xde,
+	0x73, 0xf5, 0x8e, 0x37, 0x1e, 0x1e, 0x77, 0xc9, 0xcf, 0xc7, 0x5d, 0xf2, 0xfb, 0x71, 0x97, 0x4c,
+	0x5b, 0x98, 0x71, 0xf0, 0x37, 0x00, 0x00, 0xff, 0xff, 0x6f, 0x69, 0x7b, 0x7b, 0x05, 0x07, 0x00,
+	0x00,
 }

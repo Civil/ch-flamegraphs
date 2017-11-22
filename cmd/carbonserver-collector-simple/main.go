@@ -292,26 +292,31 @@ func (c *carbonserverCollector) getDetails(ctx context.Context) (*pb.MetricDetai
 }
 
 func (c *carbonserverCollector) sendMetricstats(ctx context.Context, timestamp int64, details *pb.MetricDetailsResponse) error {
-	stats := fgpb.MultiMetricStats{
-		Timestamp: timestamp,
-		Cluster:   config.Cluster,
-		Server:    c.server,
+	sender, err := c.client.SendMetricsStats(ctx)
+	if err != nil {
+		return err
 	}
+	defer sender.CloseAndRecv()
+
 	for k, v := range details.Metrics {
-		newV := fgpb.MetricInfo{
-			Path:    k,
-			ModTime: v.ModTime,
-			ATime:   v.ATime,
-			RdTime:  v.RdTime,
-			Count:   1,
-			Size_:   v.Size_,
+		flatStat := &fgpb.FlatMetricInfo{
+			Timestamp: timestamp,
+			Cluster:   config.Cluster,
+			Server:    c.server,
+			Path:      k,
+			ModTime:   v.ModTime,
+			ATime:     v.ATime,
+			RdTime:    v.RdTime,
+			Count:     1,
+			Size_:     v.Size_,
 		}
-		stats.Metrics = append(stats.Metrics, newV)
+		err = sender.Send(flatStat)
+		if err != nil {
+			return err
+		}
 	}
 
-	_, err := c.client.SendMetricsStats(ctx, &stats)
-	return err
-
+	return nil
 }
 
 func (c *carbonserverCollector) createTree(ctx context.Context, timestamp int64) (err error) {
@@ -334,10 +339,11 @@ func (c *carbonserverCollector) createTree(ctx context.Context, timestamp int64)
 		}
 	}()
 
+	var wg sync.WaitGroup
+
 	errChan := make(chan error, 2)
 	defer close(errChan)
 
-	wg := sync.WaitGroup{}
 	details, err := c.getDetails(ctx)
 	if err != nil {
 		return
@@ -348,11 +354,13 @@ func (c *carbonserverCollector) createTree(ctx context.Context, timestamp int64)
 		zap.Int("metrics", len(details.Metrics)),
 	)
 	if !config.DryRun {
-		wg.Add(1)
 		go func() {
+			wg.Add(1)
 			err := c.sendMetricstats(ctx, timestamp, details)
 			if err != nil {
-				errChan <- err
+				logger.Error("error sending metricstats",
+					zap.Error(err),
+				)
 			}
 			wg.Done()
 		}()
@@ -390,11 +398,13 @@ func (c *carbonserverCollector) createTree(ctx context.Context, timestamp int64)
 
 	// Convert to clickhouse format
 	if !config.DryRun {
-		wg.Add(1)
 		go func() {
-			_, err := c.client.SendFlamegraph(ctx, flameGraph)
+			wg.Add(1)
+			err := c.streamFlamegraph(ctx, flameGraph)
 			if err != nil {
-				errChan <- err
+				logger.Error("failed sending flamegraph",
+					zap.Error(err),
+				)
 			}
 			wg.Done()
 		}()
@@ -411,6 +421,51 @@ func (c *carbonserverCollector) createTree(ctx context.Context, timestamp int64)
 	}
 
 	return nil
+}
+
+func (c *carbonserverCollector) streamFlamegraphNode(ctx context.Context, node *fgpb.FlameGraphNode, sender fgpb.FlamegraphV1_SendFlatFlamegraphClient, level int64, timestamp int64) error {
+	data := fgpb.FlameGraphFlat{
+		Timestamp:   timestamp,
+		Cluster:     config.Cluster,
+		Server:      c.server,
+		Id:          node.Id,
+		Name:        node.Name,
+		Total:       node.Total,
+		Value:       node.Value,
+		ParentID:    node.ParentID,
+		ChildrenIds: node.ChildrenIds,
+		Level:       level,
+		ModTime:     node.ModTime,
+	}
+
+	err := sender.Send(&data)
+	if err != nil {
+		return err
+	}
+
+	level += 1
+	for _, n := range node.Children {
+		if n != nil {
+			err = c.streamFlamegraphNode(ctx, n, sender, level, timestamp)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (c *carbonserverCollector) streamFlamegraph(ctx context.Context, root *fgpb.FlameGraph) error {
+	sender, err := c.client.SendFlatFlamegraph(ctx)
+	if err != nil {
+		return err
+	}
+	defer sender.CloseAndRecv()
+
+	err = c.streamFlamegraphNode(ctx, root.Tree, sender, int64(helper.BaseLevel), root.Timestamp)
+
+	return err
 }
 
 func (c *carbonserverCollector) ProcessData() {
@@ -515,8 +570,8 @@ var config = struct {
 	TimeoutConnect      time.Duration
 	KeepAliveInterval   time.Duration
 
-	Logger []zapwriter.Config `yaml:"logger"`
-	autoDelay     bool
+	Logger    []zapwriter.Config `yaml:"logger"`
+	autoDelay bool
 }{
 	Carbonserver:   "http://localhost:8080",
 	RerunInterval:  30 * time.Minute,
@@ -585,8 +640,8 @@ func main() {
 	if config.autoDelay {
 		rand.Seed(time.Now().UnixNano())
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		tmp := int64(r.Float64() * config.RerunInterval.Seconds()*1000)*1000000
-		t := time.Duration(tmp)*time.Nanosecond
+		tmp := int64(r.Float64()*config.RerunInterval.Seconds()*1000) * 1000000
+		t := time.Duration(tmp) * time.Nanosecond
 		config.ExtraDelay.Duration = t
 	}
 
@@ -598,6 +653,8 @@ func main() {
 			zap.Error(err),
 		)
 	}
+	// Reinitialize logger with a new config
+	logger = zapwriter.Logger("main")
 
 	if config.OwnHostname == "" {
 		config.OwnHostname, err = os.Hostname()

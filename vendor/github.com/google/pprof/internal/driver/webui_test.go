@@ -28,9 +28,14 @@ import (
 
 	"github.com/google/pprof/internal/plugin"
 	"github.com/google/pprof/profile"
+	"runtime"
 )
 
 func TestWebInterface(t *testing.T) {
+	if runtime.GOOS == "nacl" {
+		t.Skip("test assumes tcp available")
+	}
+
 	prof := makeFakeProfile()
 
 	// Custom http server creator
@@ -52,7 +57,7 @@ func TestWebInterface(t *testing.T) {
 		Obj:        fakeObjTool{},
 		UI:         &stdUI{},
 		HTTPServer: creator,
-	})
+	}, false)
 	<-serverCreated
 	defer server.Close()
 
@@ -75,6 +80,7 @@ func TestWebInterface(t *testing.T) {
 			[]string{"300ms.*F1", "200ms.*300ms.*F2"}, false},
 		{"/disasm?f=" + url.QueryEscape("F[12]"),
 			[]string{"f1:asm", "f2:asm"}, false},
+		{"/flamegraph", []string{"File: testbin", "\"n\":\"root\"", "\"n\":\"F1\"", "function tip", "function flameGraph", "function hierarchy"}, false},
 	}
 	for _, c := range testcases {
 		if c.needDot && !haveDot {

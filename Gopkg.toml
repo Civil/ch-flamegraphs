@@ -26,12 +26,16 @@
   name = "github.com/NYTimes/gziphandler"
 
 [[constraint]]
+  name = "github.com/cespare/xxhash"
+  version = "1.0.0"
+
+[[constraint]]
   branch = "master"
   name = "github.com/dgryski/go-expirecache"
 
 [[constraint]]
   name = "github.com/garyburd/redigo"
-  version = "1.1.0"
+  version = "1.3.0"
 
 [[constraint]]
   name = "github.com/go-graphite/carbonzipper"
@@ -59,7 +63,7 @@
 
 [[constraint]]
   name = "github.com/kshvakov/clickhouse"
-  version = "1.2.3"
+  version = "1.3.1"
 
 [[constraint]]
   branch = "master"
@@ -75,7 +79,7 @@
 
 [[constraint]]
   name = "google.golang.org/grpc"
-  version = "1.7.0"
+  version = "1.8.0"
 
 [[constraint]]
   branch = "v2"

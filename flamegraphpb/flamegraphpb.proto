@@ -9,11 +9,27 @@ import "google/protobuf/empty.proto";
 service FlamegraphV1 {
     rpc GetVersion (google.protobuf.Empty) returns (ProtocolVersionResponse) {}
     rpc SendFlamegraph (FlameGraph) returns (google.protobuf.Empty) {}
-    rpc SendMetricsStats (MultiMetricStats) returns (google.protobuf.Empty) {}
+    rpc SendMetricsStats (stream FlatMetricInfo) returns (google.protobuf.Empty) {}
+
+    rpc SendFlatFlamegraph (stream FlameGraphFlat) returns (google.protobuf.Empty) {}
 }
 
 message ProtocolVersionResponse {
     int64 version = 1;
+}
+
+message FlameGraphFlat {
+    int64 Timestamp = 1;
+    string Cluster = 2;
+    string Server = 3;
+    uint64 Id = 4;
+    string Name = 5;
+    uint64 Total = 6;
+    uint64 Value = 7;
+    uint64 ParentID = 8;
+    repeated uint64 ChildrenIds = 9;
+    int64 Level = 10;
+    int64 ModTime = 11;
 }
 
 message FlameGraph {
@@ -35,6 +51,18 @@ message FlameGraphNode {
     repeated FlameGraphNode Children = 9;
     repeated uint64 ChildrenIds = 10;
     uint64 ParentID = 11;
+}
+
+message FlatMetricInfo {
+    int64 Timestamp = 1;
+    string Cluster = 2;
+    string Server = 3;
+    string Path = 4;
+    int64 ModTime = 5;
+    int64 ATime = 6;
+    int64 RdTime = 7;
+    int64 Size = 8;
+    int64 Count = 9;
 }
 
 message MetricInfo {

@@ -1,11 +1,11 @@
 package helper
 
 import (
-	"hash/fnv"
+	"github.com/cespare/xxhash"
 )
 
 func NameToIdUint64(name string) uint64 {
-	hash := fnv.New64a()
+	hash := xxhash.New()
 	hash.Write([]byte(name))
 	return hash.Sum64()
 }

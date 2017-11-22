@@ -6,6 +6,7 @@ import (
 	"expvar"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -33,7 +34,6 @@ var defaultLoggerConfig = zapwriter.Config{
 	EncodingDuration: "seconds",
 }
 
-var logger *zap.Logger
 var errTimeout = fmt.Errorf("timeout exceeded")
 var errMaxTries = fmt.Errorf("max maxTries exceeded")
 var errUnknown = fmt.Errorf("unknown error")
@@ -49,8 +49,10 @@ type carbonserverCollector struct {
 
 	db *sql.DB
 
-	metricStatChan chan *fgpb.MultiMetricStats
-	flamegraphChan chan *fgpb.FlameGraph
+	metricStatChan     chan *fgpb.MultiMetricStats
+	flamegraphChan     chan *fgpb.FlameGraph
+	flamegraphFlatChan chan *fgpb.FlameGraphFlat
+	logger             *zap.Logger
 }
 
 var emptyResponse empty.Empty
@@ -78,7 +80,7 @@ func (c carbonserverCollector) SendFlamegraph(ctx context.Context, in *fgpb.Flam
 	accessLogger := zapwriter.Logger("access").With(
 		zap.String("handler", "SendFlamegraph"),
 	)
-
+	logger := c.logger.With(zap.String("handler", "SendFlamegraph"))
 	logger.Debug("data received",
 		zap.Time("current_time", time.Now()),
 		zap.Int("size", in.Size()),
@@ -92,26 +94,194 @@ func (c carbonserverCollector) SendFlamegraph(ctx context.Context, in *fgpb.Flam
 	return &emptyResponse, nil
 }
 
-func (c carbonserverCollector) SendMetricsStats(ctx context.Context, in *fgpb.MultiMetricStats) (*empty.Empty, error) {
+func (c carbonserverCollector) SendFlatFlamegraph(stream fgpb.FlamegraphV1_SendFlatFlamegraphServer) error {
+	t0 := time.Now()
+	accessLogger := zapwriter.Logger("access").With(
+		zap.String("handler", "SendFlatFlamegraph"),
+	)
+
+	logger := c.logger.With(zap.String("handler", "SendFlatFlamegraph"))
+	logger.Debug("data received",
+		zap.Time("current_time", time.Now()),
+	)
+
+	exitChan := make(chan struct{})
+	defer close(exitChan)
+	dataChan := make(chan *fgpb.FlameGraphFlat, 1024)
+	defer close(dataChan)
+
+	go c.flatFlamegraphSender(dataChan, exitChan)
+
+	packages := 0
+	status := false
+	for {
+		in, err := stream.Recv()
+		if err == io.EOF {
+			status = true
+			break
+		}
+		if err != nil {
+			logger.Error("error receiving stream",
+				zap.Error(err),
+			)
+			break
+		}
+		packages++
+		dataChan <- in
+	}
+
+	accessLogger.Info("request served",
+		zap.Bool("status", status),
+		zap.Int("total_packages_received", packages),
+		zap.Duration("runtime", time.Since(t0)),
+	)
+	return nil
+}
+
+func (c carbonserverCollector) SendMetricsStats(stream fgpb.FlamegraphV1_SendMetricsStatsServer) error {
 	t0 := time.Now()
 	accessLogger := zapwriter.Logger("access").With(
 		zap.String("handler", "SendMetricsStats"),
 	)
+	logger := zapwriter.Logger("sendMetricsStats")
 	logger.Debug("data received",
 		zap.Time("current_time", time.Now()),
-		zap.Int("size", in.Size()),
 	)
 
-	c.metricStatChan <- in
+	exitChan := make(chan struct{})
+	defer close(exitChan)
+	dataChan := make(chan *fgpb.FlatMetricInfo, 1024)
+	defer close(dataChan)
+
+	go c.metricStatsSender(dataChan, exitChan)
+
+	packages := 0
+	status := false
+	for {
+		in, err := stream.Recv()
+		if err == io.EOF {
+			status = true
+			break
+		}
+		if err != nil {
+			logger.Error("error receiving stream",
+				zap.Error(err),
+			)
+			break
+		}
+		packages++
+		dataChan <- in
+	}
 
 	accessLogger.Info("request served",
+		zap.Bool("status", status),
+		zap.Int("total_packages_received", packages),
 		zap.Duration("runtime", time.Since(t0)),
 	)
-	return &emptyResponse, nil
+	return nil
+}
+
+func (c *carbonserverCollector) metricStatsSender(dataChan chan *fgpb.FlatMetricInfo, exitChan chan struct{}) {
+	logger := zapwriter.Logger("sender").With(zap.String("type", "flatFlamegraphSender"))
+	flatSender, err := helper.NewClickhouseSender(c.db, helper.MetricStatInsertQuery, time.Now().Unix(), config.Clickhouse.RowsPerInsert)
+	if err != nil {
+		logger.Fatal("error initializing clickhouse sender",
+			zap.Error(err),
+		)
+	}
+
+	cluster := ""
+	timestamp := int64(0)
+	packages := 0
+	for {
+		select {
+		case <-exitChan:
+			flatSender.Commit()
+			logger.Debug("committed data",
+				zap.Int("packages", packages),
+			)
+			err = flatSender.SendTimestamp("graphite_metrics", cluster, timestamp)
+			if err != nil {
+				logger.Error("failed update timestamp",
+					zap.Error(err),
+				)
+			}
+			return
+		case ms := <-dataChan:
+			if ms == nil {
+				logger.Warn("received nil metricstat!")
+				continue
+			}
+			packages++
+			if cluster == "" {
+				cluster = ms.Cluster
+				timestamp = ms.Timestamp
+			}
+
+			err := flatSender.SendFlatMetricStatsPB(ms)
+			if err != nil {
+				logger.Error("failed to receive metricstats",
+					zap.Error(err),
+					zap.Int("packages", packages),
+				)
+			}
+		}
+	}
+}
+
+func (c *carbonserverCollector) flatFlamegraphSender(dataChan chan *fgpb.FlameGraphFlat, exitChan chan struct{}) {
+	logger := zapwriter.Logger("sender").With(zap.String("type", "flatFlamegraphSender"))
+	flatSender, err := helper.NewClickhouseSender(c.db, helper.FlamegraphInsertQuery, time.Now().Unix(), config.Clickhouse.RowsPerInsert)
+	if err != nil {
+		logger.Fatal("error initializing clickhouse sender",
+			zap.Error(err),
+		)
+	}
+
+	packages := 0
+	cluster := ""
+	timestamp := int64(0)
+	for {
+		select {
+		case <-exitChan:
+			flatSender.Commit()
+			logger.Debug("committed data",
+				zap.Int("packages", packages),
+			)
+			err = flatSender.SendTimestamp("graphite_flamegraph", cluster, timestamp)
+			if err != nil {
+				logger.Error("failed update timestamp",
+					zap.Error(err),
+				)
+			}
+			return
+		case fg := <-dataChan:
+			if fg == nil {
+				logger.Warn("received nil flamegraph package!",
+					zap.Int("packages", packages),
+				)
+				continue
+			}
+			packages++
+			if cluster == "" {
+				cluster = fg.Cluster
+				timestamp = fg.Timestamp
+			}
+			err := flatSender.SendFlatFgPB(fg)
+
+			if err != nil {
+				logger.Error("failed to receive flamegraph",
+					zap.Int("packages", packages),
+					zap.Error(err),
+				)
+			}
+		}
+	}
 }
 
 func (c *carbonserverCollector) sender() {
 	logger := zapwriter.Logger("sender").With(zap.String("type", "metricstat"))
+
 	sender, err := helper.NewClickhouseSender(c.db, helper.MetricStatInsertQuery, time.Now().Unix(), config.Clickhouse.RowsPerInsert)
 	if err != nil {
 		logger.Fatal("error initializing clickhouse sender",
@@ -152,9 +322,11 @@ PYTHONPATH=./lib/python2.7/site-packages/opt/graphite/webapp/ django-admin.py mi
 
 func newCarbonserverCollector(db *sql.DB) (*carbonserverCollector, error) {
 	collector := carbonserverCollector{
-		db:             db,
-		metricStatChan: make(chan *fgpb.MultiMetricStats, 1024),
-		flamegraphChan: make(chan *fgpb.FlameGraph, 1024),
+		db:                 db,
+		metricStatChan:     make(chan *fgpb.MultiMetricStats, 1024),
+		flamegraphChan:     make(chan *fgpb.FlameGraph, 1024),
+		flamegraphFlatChan: make(chan *fgpb.FlameGraphFlat, 1024),
+		logger:             zapwriter.Logger("main"),
 	}
 
 	go collector.sender()
@@ -198,6 +370,7 @@ var config = struct {
 }
 
 func validateConfig() {
+	logger := zapwriter.Logger("main")
 	switch {
 	case config.Listen == "":
 		logger.Fatal("listen can't be empty")
@@ -216,7 +389,7 @@ func main() {
 		log.Fatal("failed to initialize logger with default configuration")
 
 	}
-	logger = zapwriter.Logger("main")
+	logger := zapwriter.Logger("main")
 
 	// TODO: Migrate to viper
 	cfgPath := flag.String("config", "config.yaml", "path to the config file")
@@ -249,6 +422,8 @@ func main() {
 			zap.Any("config", config),
 		)
 	}
+	// Reinitialize logger
+	logger = zapwriter.Logger("main")
 
 	// Initialize DB Connection
 	db, err := sql.Open("clickhouse", config.Clickhouse.ClickhouseHost)

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
 
 	"database/sql"
@@ -74,23 +75,23 @@ func createTimestampsMV(db *sql.DB, tablePostfix string) error {
 		FROM flamegraph_timestamps` + tablePostfix + `
 		GROUP BY type, cluster, timestamp, date
 		`)
-/*
-	if err != nil {
-		return err
-	}
+	/*
+		if err != nil {
+			return err
+		}
 
-	_, err = db.Exec("CREATE VIEW IF NOT EXISTS flamegraph_timestamps" + tablePostfix + `_view
-		AS SELECT
-			type as type,
-			cluster as cluster,
-			uniqMerge(count) as count,
-			timestamp as timestamp,
-			date,
-			maxMerge(version) as version
-		FROM flamegraph_timestamps` + tablePostfix + `_mv
-		GROUP BY type, cluster, timestamp, date
-		`)
-*/
+		_, err = db.Exec("CREATE VIEW IF NOT EXISTS flamegraph_timestamps" + tablePostfix + `_view
+			AS SELECT
+				type as type,
+				cluster as cluster,
+				uniqMerge(count) as count,
+				timestamp as timestamp,
+				date,
+				maxMerge(version) as version
+			FROM flamegraph_timestamps` + tablePostfix + `_mv
+			GROUP BY type, cluster, timestamp, date
+			`)
+	*/
 	return err
 }
 
@@ -137,28 +138,28 @@ func createMetricStatsMV(db *sql.DB, tablePostfix string) error {
 		FROM metricstats` + tablePostfix + `
 		GROUP BY timestamp, type, cluster, name, date
 		`)
-/*
-	if err != nil {
-		return err
-	}
+	/*
+		if err != nil {
+			return err
+		}
 
-	_, err = db.Exec("CREATE VIEW IF NOT EXISTS metricstats" + tablePostfix + `_view
-		AS SELECT
-			timestamp as timestamp,
-			type as type,
-			cluster as cluster,
-	        uniqMerge(count) as count,
-			groupArrayMerge(servers) as servers,
-			name as name,
-			maxMerge(mtime) as mtime,
-			maxMerge(atime) as atime,
-			maxMerge(rdtime) as rdtime,
-			date,
-			maxMerge(version) as version
-		FROM metricstats` + tablePostfix + `_mv
-		GROUP BY timestamp, type, cluster, name, date
-		`)
-*/
+		_, err = db.Exec("CREATE VIEW IF NOT EXISTS metricstats" + tablePostfix + `_view
+			AS SELECT
+				timestamp as timestamp,
+				type as type,
+				cluster as cluster,
+		        uniqMerge(count) as count,
+				groupArrayMerge(servers) as servers,
+				name as name,
+				maxMerge(mtime) as mtime,
+				maxMerge(atime) as atime,
+				maxMerge(rdtime) as rdtime,
+				date,
+				maxMerge(version) as version
+			FROM metricstats` + tablePostfix + `_mv
+			GROUP BY timestamp, type, cluster, name, date
+			`)
+	*/
 	return err
 }
 
@@ -213,32 +214,32 @@ func createFlameGraphMV(db *sql.DB, tablePostfix string) error {
 		FROM flamegraph` + tablePostfix + `
 		GROUP BY timestamp, type, cluster, id, name, parent_id, date
 		`)
-/*
-	if err != nil {
-		return err
-	}
+	/*
+		if err != nil {
+			return err
+		}
 
-	_, err = db.Exec("CREATE VIEW IF NOT EXISTS flamegraph" + tablePostfix + `_view
-		AS SELECT
-			timestamp as timestamp,
-			type as type,
-			cluster as cluster,
-			uniqMerge(count) as count,
-			groupArrayMerge(servers) as servers,
-			id as id,
-			name as name,
-			sumMerge(total) as total,
-			sumMerge(value) as value,
-			parent_id as parent_id,
-			groupArrayMerge(children_ids) as children_ids,
-			anyMerge(level) as level,
-			date,
-			maxMerge(mtime) as mtime,
-			maxMerge(version) as version
-		FROM flamegraph` + tablePostfix + `_mv
-		GROUP BY timestamp, type, cluster, id, name, parent_id, date
-		`)
-*/
+		_, err = db.Exec("CREATE VIEW IF NOT EXISTS flamegraph" + tablePostfix + `_view
+			AS SELECT
+				timestamp as timestamp,
+				type as type,
+				cluster as cluster,
+				uniqMerge(count) as count,
+				groupArrayMerge(servers) as servers,
+				id as id,
+				name as name,
+				sumMerge(total) as total,
+				sumMerge(value) as value,
+				parent_id as parent_id,
+				groupArrayMerge(children_ids) as children_ids,
+				anyMerge(level) as level,
+				date,
+				maxMerge(mtime) as mtime,
+				maxMerge(version) as version
+			FROM flamegraph` + tablePostfix + `_mv
+			GROUP BY timestamp, type, cluster, id, name, parent_id, date
+			`)
+	*/
 	return err
 }
 
@@ -274,22 +275,22 @@ func createFlameGraphClusterMV(db *sql.DB, tablePostfix string) error {
 		FROM flamegraph` + tablePostfix + `
 		GROUP BY type, cluster, date
 		`)
-/*
-	if err != nil {
-		return err
-	}
+	/*
+		if err != nil {
+			return err
+		}
 
-	_, err = db.Exec("CREATE VIEW IF NOT EXISTS flamegraph_clusters" + tablePostfix + `_view
-		AS SELECT
-			type as type,
-			cluster as cluster,
-			date,
-			uniqMerge(count) as count,
-			maxMerge(version)
-		FROM flamegraph` + tablePostfix + `_mv
-		GROUP BY type, cluster, date
-		`)
-*/
+		_, err = db.Exec("CREATE VIEW IF NOT EXISTS flamegraph_clusters" + tablePostfix + `_view
+			AS SELECT
+				type as type,
+				cluster as cluster,
+				date,
+				uniqMerge(count) as count,
+				maxMerge(version)
+			FROM flamegraph` + tablePostfix + `_mv
+			GROUP BY type, cluster, date
+			`)
+	*/
 	return err
 }
 
@@ -347,6 +348,7 @@ func createDistributedTables(db *sql.DB) error {
 }
 
 func migrateOrCreateTables(db *sql.DB) {
+	logger := zapwriter.Logger("migrations")
 	tablePostfix := ""
 	if config.Clickhouse.UseDistributedTables {
 		tablePostfix = "_local"

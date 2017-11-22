@@ -152,9 +152,35 @@ func (c *ClickhouseSender) SendStacktrace(data *types.StackFlameGraphNode, fullN
 }
 
 const (
-	FlamegraphInsertQuery = "INSERT INTO flamegraph (timestamp, type, cluster, id, name, total, value, parent_id, children_ids, level, mtime, server, date, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	FlamegraphInsertQuery = "INSERT INTO flamegraph (timestamp, type, cluster, id, name, total, value, mtime, parent_id, children_ids, level, server, date, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	BaseLevel             = 0
 )
+
+func (c *ClickhouseSender) SendFlatFgPB(node *fgpb.FlameGraphFlat) error {
+	c.lines++
+
+	_, err := c.stmt.Exec(
+		node.Timestamp,
+		"graphite_metrics",
+		node.Cluster,
+		node.Id,
+		node.Name,
+		node.Total,
+		node.Value,
+		node.ModTime,
+		node.ParentID,
+		clickhouse.Array(node.ChildrenIds),
+		node.Level,
+		node.Server,
+		c.now,
+		uint64(c.now.Unix()),
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
 
 func (c *ClickhouseSender) SendFgPB(tree *fgpb.FlameGraph) error {
 	tx, stmt, err := DBStartTransaction(c.db, FlamegraphInsertQuery)
@@ -183,10 +209,10 @@ func (c *ClickhouseSender) sendFgNode(stmt *sql.Stmt, level int, timestamp int64
 		node.Name,
 		node.Total,
 		node.Value,
+		node.ModTime,
 		node.ParentID,
 		clickhouse.Array(node.ChildrenIds),
 		level,
-		node.ModTime,
 		server,
 		c.now,
 		uint64(c.now.Unix()),
@@ -273,6 +299,27 @@ func (c *ClickhouseSender) SendTimestamp(graphType, cluster string, timestamp in
 const (
 	MetricStatInsertQuery = "INSERT INTO metricstats (timestamp, type, cluster, name, mtime, atime, rdtime, server, date, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 )
+
+func (c *ClickhouseSender) SendFlatMetricStatsPB(stats *fgpb.FlatMetricInfo) error {
+	c.lines++
+	_, err := c.stmt.Exec(
+		stats.Timestamp,
+		"graphite_metrics",
+		stats.Cluster,
+		stats.Path,
+		stats.ModTime,
+		stats.ATime,
+		stats.RdTime,
+		stats.Server,
+		c.now,
+		uint64(c.now.Unix()),
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
 
 func (c *ClickhouseSender) SendMetricStatsPB(stats *fgpb.MultiMetricStats) error {
 	tx, stmt, err := DBStartTransaction(c.db, MetricStatInsertQuery)
