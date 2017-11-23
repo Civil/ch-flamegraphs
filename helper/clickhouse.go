@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"fmt"
 	"time"
 
 	"database/sql"
@@ -156,6 +157,26 @@ const (
 	BaseLevel             = 0
 )
 
+var ErrGracefulCommitNotEnoughLines = fmt.Errorf("not enough lines to commit")
+
+func (c *ClickhouseSender) GracefulCommit() error {
+	if c.lines < 100000 {
+		return ErrGracefulCommitNotEnoughLines
+	}
+	err := c.tx.Commit()
+	if err != nil {
+		return err
+	}
+	c.tx, c.stmt, err = DBStartTransaction(c.db, c.query)
+	if err != nil {
+		return err
+	}
+	c.commitedLines += int64(c.lines)
+	c.lines = 0
+	c.txStart = time.Now()
+	return nil
+}
+
 func (c *ClickhouseSender) SendFlatFgPB(node *fgpb.FlameGraphFlat) error {
 	c.lines++
 
@@ -177,6 +198,20 @@ func (c *ClickhouseSender) SendFlatFgPB(node *fgpb.FlameGraphFlat) error {
 	)
 	if err != nil {
 		return err
+	}
+
+	if c.lines >= c.linesToBuffer || time.Since(c.txStart) > 2*time.Second {
+		err = c.tx.Commit()
+		if err != nil {
+			return err
+		}
+		c.tx, c.stmt, err = DBStartTransaction(c.db, c.query)
+		if err != nil {
+			return err
+		}
+		c.commitedLines += int64(c.lines)
+		c.lines = 0
+		c.txStart = time.Now()
 	}
 
 	return nil

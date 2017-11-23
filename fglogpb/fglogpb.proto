@@ -1,0 +1,18 @@
+syntax = "proto3";
+package fglogpb;
+
+// Regenerate with rotoc --gogofast_out=. flamegraphpb.proto --proto_path=../vendor/ --proto_path=.
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+// Version
+message AccessLogger {
+    string Handler = 1;
+    bool IsError = 2;
+    string Error = 3;
+    string Reason = 4;
+    double Runtime = 5;
+    int64 PackagesReceived = 6;
+    int64 Timestamp = 7;
+    string Cluster = 8;
+    string SourceServer = 9;
+}

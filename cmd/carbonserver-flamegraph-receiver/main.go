@@ -6,14 +6,15 @@ import (
 	"expvar"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
 	_ "net/http/pprof"
 	"runtime"
 	"time"
 
+	"github.com/Civil/carbonserver-flamegraphs/fglogpb"
 	fgpb "github.com/Civil/carbonserver-flamegraphs/flamegraphpb"
 	"github.com/Civil/carbonserver-flamegraphs/helper"
 	"github.com/golang/protobuf/ptypes/empty"
@@ -52,7 +53,12 @@ type carbonserverCollector struct {
 	metricStatChan     chan *fgpb.MultiMetricStats
 	flamegraphChan     chan *fgpb.FlameGraph
 	flamegraphFlatChan chan *fgpb.FlameGraphFlat
+	msChan             chan *fgpb.FlatMetricInfo
+	fgChan             chan *fgpb.FlameGraphFlat
+	forceCommitChan    chan struct{}
+	exitChan           chan struct{}
 	logger             *zap.Logger
+	accessLogger       *zap.Logger
 }
 
 var emptyResponse empty.Empty
@@ -61,25 +67,43 @@ const (
 	GRPCAPIVersion = 0
 )
 
+func (c carbonserverCollector) logState(ctx context.Context, t0 time.Time, state *fglogpb.AccessLogger) {
+	state.Runtime = time.Since(t0).Seconds()
+	if state.IsError {
+		c.accessLogger.Error("error processing request",
+			zap.Any("state", state),
+		)
+	} else {
+		c.accessLogger.Info("request served",
+			zap.Any("state", state),
+		)
+	}
+}
+
 func (c carbonserverCollector) GetVersion(ctx context.Context, empty *empty.Empty) (*fgpb.ProtocolVersionResponse, error) {
 	t0 := time.Now()
-	logger := zapwriter.Logger("access").With(
-		zap.String("handler", "GetVersion"),
-	)
-	resp := &fgpb.ProtocolVersionResponse{Version: GRPCAPIVersion}
-	logger.Info("request served",
+	state := fglogpb.AccessLogger{
+		Handler: "access",
+	}
+	defer func() {
+		c.logState(ctx, t0, &state)
+	}()
 
-		zap.Duration("runtime", time.Since(t0)),
-	)
+	resp := &fgpb.ProtocolVersionResponse{Version: GRPCAPIVersion}
+
 	return resp, nil
 
 }
 
 func (c carbonserverCollector) SendFlamegraph(ctx context.Context, in *fgpb.FlameGraph) (*empty.Empty, error) {
 	t0 := time.Now()
-	accessLogger := zapwriter.Logger("access").With(
-		zap.String("handler", "SendFlamegraph"),
-	)
+	state := fglogpb.AccessLogger{
+		Handler: "SendFlamegraph",
+	}
+	defer func() {
+		c.logState(ctx, t0, &state)
+	}()
+
 	logger := c.logger.With(zap.String("handler", "SendFlamegraph"))
 	logger.Debug("data received",
 		zap.Time("current_time", time.Now()),
@@ -88,195 +112,7 @@ func (c carbonserverCollector) SendFlamegraph(ctx context.Context, in *fgpb.Flam
 
 	c.flamegraphChan <- in
 
-	accessLogger.Info("request served",
-		zap.Duration("runtime", time.Since(t0)),
-	)
 	return &emptyResponse, nil
-}
-
-func (c carbonserverCollector) SendFlatFlamegraph(stream fgpb.FlamegraphV1_SendFlatFlamegraphServer) error {
-	t0 := time.Now()
-	accessLogger := zapwriter.Logger("access").With(
-		zap.String("handler", "SendFlatFlamegraph"),
-	)
-
-	logger := c.logger.With(zap.String("handler", "SendFlatFlamegraph"))
-	logger.Debug("data received",
-		zap.Time("current_time", time.Now()),
-	)
-
-	exitChan := make(chan struct{})
-	defer close(exitChan)
-	dataChan := make(chan *fgpb.FlameGraphFlat, 1024)
-	defer close(dataChan)
-
-	go c.flatFlamegraphSender(dataChan, exitChan)
-
-	packages := 0
-	status := false
-	for {
-		in, err := stream.Recv()
-		if err == io.EOF {
-			status = true
-			break
-		}
-		if err != nil {
-			logger.Error("error receiving stream",
-				zap.Error(err),
-			)
-			break
-		}
-		packages++
-		dataChan <- in
-	}
-
-	accessLogger.Info("request served",
-		zap.Bool("status", status),
-		zap.Int("total_packages_received", packages),
-		zap.Duration("runtime", time.Since(t0)),
-	)
-	return nil
-}
-
-func (c carbonserverCollector) SendMetricsStats(stream fgpb.FlamegraphV1_SendMetricsStatsServer) error {
-	t0 := time.Now()
-	accessLogger := zapwriter.Logger("access").With(
-		zap.String("handler", "SendMetricsStats"),
-	)
-	logger := zapwriter.Logger("sendMetricsStats")
-	logger.Debug("data received",
-		zap.Time("current_time", time.Now()),
-	)
-
-	exitChan := make(chan struct{})
-	defer close(exitChan)
-	dataChan := make(chan *fgpb.FlatMetricInfo, 1024)
-	defer close(dataChan)
-
-	go c.metricStatsSender(dataChan, exitChan)
-
-	packages := 0
-	status := false
-	for {
-		in, err := stream.Recv()
-		if err == io.EOF {
-			status = true
-			break
-		}
-		if err != nil {
-			logger.Error("error receiving stream",
-				zap.Error(err),
-			)
-			break
-		}
-		packages++
-		dataChan <- in
-	}
-
-	accessLogger.Info("request served",
-		zap.Bool("status", status),
-		zap.Int("total_packages_received", packages),
-		zap.Duration("runtime", time.Since(t0)),
-	)
-	return nil
-}
-
-func (c *carbonserverCollector) metricStatsSender(dataChan chan *fgpb.FlatMetricInfo, exitChan chan struct{}) {
-	logger := zapwriter.Logger("sender").With(zap.String("type", "flatFlamegraphSender"))
-	flatSender, err := helper.NewClickhouseSender(c.db, helper.MetricStatInsertQuery, time.Now().Unix(), config.Clickhouse.RowsPerInsert)
-	if err != nil {
-		logger.Fatal("error initializing clickhouse sender",
-			zap.Error(err),
-		)
-	}
-
-	cluster := ""
-	timestamp := int64(0)
-	packages := 0
-	for {
-		select {
-		case <-exitChan:
-			flatSender.Commit()
-			logger.Debug("committed data",
-				zap.Int("packages", packages),
-			)
-			err = flatSender.SendTimestamp("graphite_metrics", cluster, timestamp)
-			if err != nil {
-				logger.Error("failed update timestamp",
-					zap.Error(err),
-				)
-			}
-			return
-		case ms := <-dataChan:
-			if ms == nil {
-				logger.Warn("received nil metricstat!")
-				continue
-			}
-			packages++
-			if cluster == "" {
-				cluster = ms.Cluster
-				timestamp = ms.Timestamp
-			}
-
-			err := flatSender.SendFlatMetricStatsPB(ms)
-			if err != nil {
-				logger.Error("failed to receive metricstats",
-					zap.Error(err),
-					zap.Int("packages", packages),
-				)
-			}
-		}
-	}
-}
-
-func (c *carbonserverCollector) flatFlamegraphSender(dataChan chan *fgpb.FlameGraphFlat, exitChan chan struct{}) {
-	logger := zapwriter.Logger("sender").With(zap.String("type", "flatFlamegraphSender"))
-	flatSender, err := helper.NewClickhouseSender(c.db, helper.FlamegraphInsertQuery, time.Now().Unix(), config.Clickhouse.RowsPerInsert)
-	if err != nil {
-		logger.Fatal("error initializing clickhouse sender",
-			zap.Error(err),
-		)
-	}
-
-	packages := 0
-	cluster := ""
-	timestamp := int64(0)
-	for {
-		select {
-		case <-exitChan:
-			flatSender.Commit()
-			logger.Debug("committed data",
-				zap.Int("packages", packages),
-			)
-			err = flatSender.SendTimestamp("graphite_flamegraph", cluster, timestamp)
-			if err != nil {
-				logger.Error("failed update timestamp",
-					zap.Error(err),
-				)
-			}
-			return
-		case fg := <-dataChan:
-			if fg == nil {
-				logger.Warn("received nil flamegraph package!",
-					zap.Int("packages", packages),
-				)
-				continue
-			}
-			packages++
-			if cluster == "" {
-				cluster = fg.Cluster
-				timestamp = fg.Timestamp
-			}
-			err := flatSender.SendFlatFgPB(fg)
-
-			if err != nil {
-				logger.Error("failed to receive flamegraph",
-					zap.Int("packages", packages),
-					zap.Error(err),
-				)
-			}
-		}
-	}
 }
 
 func (c *carbonserverCollector) sender() {
@@ -309,26 +145,21 @@ func (c *carbonserverCollector) sender() {
 	}
 }
 
-/*
-virtualenv ./graphite-web -p '/usr/bin/python2.7'
-source graphite-web/bin/activate
-cd graphite-web/
-pip install graphite-web
-mv ./lib/python2.7/site-packages/opt/graphite/webapp/graphite/local_settings.py{.example,}
-vim ./lib/python2.7/site-packages/opt/graphite/webapp/graphite/local_settings.py
-mkdir -p ./lib/python2.7/site-packages/opt/graphite/storage/log/webapp
-PYTHONPATH=./lib/python2.7/site-packages/opt/graphite/webapp/ django-admin.py migrate --settings=graphite.settings --run-syncdb
-*/
-
 func newCarbonserverCollector(db *sql.DB) (*carbonserverCollector, error) {
 	collector := carbonserverCollector{
 		db:                 db,
 		metricStatChan:     make(chan *fgpb.MultiMetricStats, 1024),
 		flamegraphChan:     make(chan *fgpb.FlameGraph, 1024),
 		flamegraphFlatChan: make(chan *fgpb.FlameGraphFlat, 1024),
+		msChan:             make(chan *fgpb.FlatMetricInfo, 1024),
+		fgChan:             make(chan *fgpb.FlameGraphFlat, 1024),
+		exitChan:           make(chan struct{}),
+		forceCommitChan:    make(chan struct{}),
 		logger:             zapwriter.Logger("main"),
+		accessLogger:       zapwriter.Logger("access"),
 	}
 
+	go collector.flatSender()
 	go collector.sender()
 
 	return &collector, nil
@@ -341,6 +172,7 @@ type connectOptions struct {
 var config = struct {
 	Clickhouse         helper.ClickhouseConfig `yaml:"clickhouse"`
 	Listen             string                  `yaml:"listen"`
+	DebugListen        string                  `yaml:"debug_listen"`
 	ConnectOptions     connectOptions          `yaml:"connect_options"`
 	CacheSize          uint64
 	MaxSendMessageSize uint32 `yaml:"max_send_message_size"`
@@ -357,7 +189,8 @@ var config = struct {
 		UseDistributedTables:   false,
 		DistributedClusterName: "flamegraph",
 	},
-	Listen: "[::]:8088",
+	Listen:      "[::]:8088",
+	DebugListen: "[::]:8089",
 	ConnectOptions: connectOptions{
 		Insecure: true,
 	},
@@ -424,6 +257,7 @@ func main() {
 	}
 	// Reinitialize logger
 	logger = zapwriter.Logger("main")
+	zap.RedirectStdLog(logger)
 
 	// Initialize DB Connection
 	db, err := sql.Open("clickhouse", config.Clickhouse.ClickhouseHost)
@@ -490,6 +324,10 @@ func main() {
 
 	expvar.NewString("GoVersion").Set(runtime.Version())
 	expvar.NewString("BuildVersion").Set(BuildVersion)
+
+	go func() {
+		http.ListenAndServe(config.DebugListen, nil)
+	}()
 
 	err = grpcServer.Serve(tcpListener)
 	if err != nil {
