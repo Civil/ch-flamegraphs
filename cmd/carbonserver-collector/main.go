@@ -20,8 +20,8 @@ import (
 
 	"database/sql"
 
-	"github.com/Civil/carbonserver-flamegraphs/helper"
-	"github.com/Civil/carbonserver-flamegraphs/types"
+	"github.com/Civil/ch-flamegraphs/helper"
+	"github.com/Civil/ch-flamegraphs/types"
 	ecache "github.com/dgryski/go-expirecache"
 	pb "github.com/go-graphite/carbonzipper/carbonzipperpb3"
 	"github.com/kshvakov/clickhouse"

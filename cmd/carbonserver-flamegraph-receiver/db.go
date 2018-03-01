@@ -58,41 +58,7 @@ func createTimestampsTable(db *sql.DB, tablePostfix, engine string) error {
 		return nil
 	}
 
-	err = createTimestampsMV(db, tablePostfix)
-	return err
-}
-
-func createTimestampsMV(db *sql.DB, tablePostfix string) error {
-	_, err := db.Exec("CREATE MATERIALIZED VIEW IF NOT EXISTS flamegraph_timestamps" + tablePostfix + `_mv
-		ENGINE = AggregatingMergeTree(date, (type, cluster, timestamp, date), 8192)
-		AS SELECT
-			type as type,
-			cluster as cluster,
-			uniqState(server) as count,
-			timestamp as timestamp,
-			date,
-			maxState(version) as version
-		FROM flamegraph_timestamps` + tablePostfix + `
-		GROUP BY type, cluster, timestamp, date
-		`)
-	/*
-		if err != nil {
-			return err
-		}
-
-		_, err = db.Exec("CREATE VIEW IF NOT EXISTS flamegraph_timestamps" + tablePostfix + `_view
-			AS SELECT
-				type as type,
-				cluster as cluster,
-				uniqMerge(count) as count,
-				timestamp as timestamp,
-				date,
-				maxMerge(version) as version
-			FROM flamegraph_timestamps` + tablePostfix + `_mv
-			GROUP BY type, cluster, timestamp, date
-			`)
-	*/
-	return err
+	return nil
 }
 
 func createMetricStatsTable(db *sql.DB, tablePostfix, engine string) error {
@@ -112,56 +78,9 @@ func createMetricStatsTable(db *sql.DB, tablePostfix, engine string) error {
 		return err
 	}
 
-	if strings.HasPrefix(engine, "Distributed") {
-		return nil
-	}
-
-	err = createMetricStatsMV(db, tablePostfix)
-	return err
+	return nil
 }
 
-func createMetricStatsMV(db *sql.DB, tablePostfix string) error {
-	_, err := db.Exec("CREATE MATERIALIZED VIEW IF NOT EXISTS metricstats" + tablePostfix + `_mv
-		ENGINE = AggregatingMergeTree(date, (timestamp, cluster, type, mtime, atime, rdtime, name, date), 8192)
-		AS SELECT
-			timestamp as timestamp,
-			type as type,
-			cluster as cluster,
-	        uniqState(server) as count,
-			groupArrayState(server) as servers,
-			name as name,
-			maxState(mtime) as mtime,
-			maxState(atime) as atime,
-			maxState(rdtime) as rdtime,
-			date,
-			maxState(version) as version
-		FROM metricstats` + tablePostfix + `
-		GROUP BY timestamp, type, cluster, name, date
-		`)
-	/*
-		if err != nil {
-			return err
-		}
-
-		_, err = db.Exec("CREATE VIEW IF NOT EXISTS metricstats" + tablePostfix + `_view
-			AS SELECT
-				timestamp as timestamp,
-				type as type,
-				cluster as cluster,
-		        uniqMerge(count) as count,
-				groupArrayMerge(servers) as servers,
-				name as name,
-				maxMerge(mtime) as mtime,
-				maxMerge(atime) as atime,
-				maxMerge(rdtime) as rdtime,
-				date,
-				maxMerge(version) as version
-			FROM metricstats` + tablePostfix + `_mv
-			GROUP BY timestamp, type, cluster, name, date
-			`)
-	*/
-	return err
-}
 
 func createFlameGraphTable(db *sql.DB, tablePostfix, engine string) error {
 	_, err := db.Exec("CREATE TABLE IF NOT EXISTS flamegraph" + tablePostfix + ` (
@@ -184,64 +103,9 @@ func createFlameGraphTable(db *sql.DB, tablePostfix, engine string) error {
 		return err
 	}
 
-	if strings.HasPrefix(engine, "Distributed") {
-		return nil
-	}
-
-	err = createFlameGraphMV(db, tablePostfix)
-	return err
+	return nil
 }
 
-func createFlameGraphMV(db *sql.DB, tablePostfix string) error {
-	_, err := db.Exec("CREATE MATERIALIZED VIEW IF NOT EXISTS flamegraph" + tablePostfix + `_mv
-		ENGINE = AggregatingMergeTree(date, (timestamp, cluster, type, id, parent_id, level, value, name, mtime, date), 8192)
-		AS SELECT
-			timestamp as timestamp,
-			type as type,
-			cluster as cluster,
-			uniqState(server) as count,
-			groupArrayState(server) as servers,
-			id as id,
-			name as name,
-			sumState(total) as total,
-			sumState(value) as value,
-			parent_id as parent_id,
-			groupArrayState(children_ids) as children_ids,
-			anyState(level) as level,
-			date,
-			maxState(mtime) as mtime,
-			maxState(version) as version
-		FROM flamegraph` + tablePostfix + `
-		GROUP BY timestamp, type, cluster, id, name, parent_id, date
-		`)
-	/*
-		if err != nil {
-			return err
-		}
-
-		_, err = db.Exec("CREATE VIEW IF NOT EXISTS flamegraph" + tablePostfix + `_view
-			AS SELECT
-				timestamp as timestamp,
-				type as type,
-				cluster as cluster,
-				uniqMerge(count) as count,
-				groupArrayMerge(servers) as servers,
-				id as id,
-				name as name,
-				sumMerge(total) as total,
-				sumMerge(value) as value,
-				parent_id as parent_id,
-				groupArrayMerge(children_ids) as children_ids,
-				anyMerge(level) as level,
-				date,
-				maxMerge(mtime) as mtime,
-				maxMerge(version) as version
-			FROM flamegraph` + tablePostfix + `_mv
-			GROUP BY timestamp, type, cluster, id, name, parent_id, date
-			`)
-	*/
-	return err
-}
 
 func createFlameGraphClusterTable(db *sql.DB, tablePostfix, engine string) error {
 	_, err := db.Exec("CREATE TABLE IF NOT EXISTS flamegraph_clusters" + tablePostfix + ` (
@@ -255,43 +119,7 @@ func createFlameGraphClusterTable(db *sql.DB, tablePostfix, engine string) error
 		return err
 	}
 
-	if strings.HasPrefix(engine, "Distributed") {
-		return nil
-	}
-
-	err = createFlameGraphClusterMV(db, tablePostfix)
-	return err
-}
-
-func createFlameGraphClusterMV(db *sql.DB, tablePostfix string) error {
-	_, err := db.Exec("CREATE MATERIALIZED VIEW IF NOT EXISTS flamegraph_clusters" + tablePostfix + `_mv
-		ENGINE = AggregatingMergeTree(date, (type, cluster, date), 8192)
-		AS SELECT
-			type as type,
-			cluster as cluster,
-			date,
-			uniqState(server) as count,
-			maxState(version)
-		FROM flamegraph` + tablePostfix + `
-		GROUP BY type, cluster, date
-		`)
-	/*
-		if err != nil {
-			return err
-		}
-
-		_, err = db.Exec("CREATE VIEW IF NOT EXISTS flamegraph_clusters" + tablePostfix + `_view
-			AS SELECT
-				type as type,
-				cluster as cluster,
-				date,
-				uniqMerge(count) as count,
-				maxMerge(version)
-			FROM flamegraph` + tablePostfix + `_mv
-			GROUP BY type, cluster, date
-			`)
-	*/
-	return err
+	return nil
 }
 
 func createLocalTables(db *sql.DB, tablePostfix string) error {

@@ -15,10 +15,10 @@ dep:
 
 install:
 	mkdir -p $(DESTDIR)/usr/bin/
-	mkdir -p $(DESTDIR)/usr/share/carbonserver-flamegraphs/
+	mkdir -p $(DESTDIR)/usr/share/ch-flamegraphs/
 	cp cmd/flamegraph-server/flamegraph-server $(DESTDIR)/usr/bin/
 	cp cmd/carbonserver-collector/carbonserver-collector $(DESTDIR)/usr/bin/
-	cp config.example.yaml $(DESTDIR)/usr/share/carbonserver-flamegraphs/
+	cp config.example.yaml $(DESTDIR)/usr/share/ch-flamegraphs/
 
 clean:
 	rm -rf vendor

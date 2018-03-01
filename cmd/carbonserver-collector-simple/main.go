@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	fgpb "github.com/Civil/carbonserver-flamegraphs/flamegraphpb"
-	"github.com/Civil/carbonserver-flamegraphs/helper"
+	fgpb "github.com/Civil/ch-flamegraphs/flamegraphpb"
+	"github.com/Civil/ch-flamegraphs/helper"
 	pb "github.com/go-graphite/carbonzipper/carbonzipperpb3"
 	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"

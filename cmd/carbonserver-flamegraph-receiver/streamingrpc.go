@@ -5,9 +5,9 @@ import (
 	"io"
 	"time"
 
-	"github.com/Civil/carbonserver-flamegraphs/fglogpb"
-	fgpb "github.com/Civil/carbonserver-flamegraphs/flamegraphpb"
-	"github.com/Civil/carbonserver-flamegraphs/helper"
+	"github.com/Civil/ch-flamegraphs/fglogpb"
+	fgpb "github.com/Civil/ch-flamegraphs/flamegraphpb"
+	"github.com/Civil/ch-flamegraphs/helper"
 	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
 )
@@ -39,6 +39,7 @@ func (c carbonserverCollector) SendFlatFlamegraph(stream fgpb.FlamegraphV1_SendF
 			return err
 		}
 		state.PackagesReceived++
+		state.BytesReceived += int64(in.Size())
 		if state.Timestamp == 0 {
 			state.Timestamp = in.Timestamp
 			state.Cluster = in.Cluster
@@ -97,6 +98,7 @@ func (c carbonserverCollector) SendMetricsStats(stream fgpb.FlamegraphV1_SendMet
 			return err
 		}
 		state.PackagesReceived++
+		state.BytesReceived += int64(in.Size())
 		if state.Timestamp == 0 {
 			state.Timestamp = in.Timestamp
 			state.Cluster = in.Cluster
@@ -132,7 +134,7 @@ func (c carbonserverCollector) SendMetricsStats(stream fgpb.FlamegraphV1_SendMet
 }
 
 func (c *carbonserverCollector) flatSender() {
-	logger := zapwriter.Logger("sender").With(zap.String("type", "flatFlamegraphSender"))
+	logger := zapwriter.Logger("flatSender")
 	fgSender, err := helper.NewClickhouseSender(c.db, helper.FlamegraphInsertQuery, time.Now().Unix(), config.Clickhouse.RowsPerInsert)
 	if err != nil {
 		logger.Fatal("error initializing clickhouse sender",
@@ -173,6 +175,7 @@ func (c *carbonserverCollector) flatSender() {
 			)
 			return
 		case <-c.forceCommitChan:
+			logger.Debug("doing garceful commit")
 			err = fgSender.GracefulCommit()
 			if err == helper.ErrGracefulCommitNotEnoughLines {
 				logger.Debug("not enough lines for gracefulCommit",
@@ -183,6 +186,7 @@ func (c *carbonserverCollector) flatSender() {
 					zap.Error(err),
 				)
 			}
+
 			err = msSender.GracefulCommit()
 			if err == helper.ErrGracefulCommitNotEnoughLines {
 				logger.Debug("not enough lines for gracefulCommit",
@@ -210,6 +214,14 @@ func (c *carbonserverCollector) flatSender() {
 					zap.Int("packages", packages),
 					zap.Error(err),
 				)
+				fgSender.Commit()
+				fgSender, err = helper.NewClickhouseSender(c.db, helper.FlamegraphInsertQuery, time.Now().Unix(), config.Clickhouse.RowsPerInsert)
+				if err != nil {
+					logger.Fatal("error initializing clickhouse sender",
+						zap.String("type", "flamegraph"),
+						zap.Error(err),
+					)
+				}
 			}
 		case ms := <-c.msChan:
 			if ms == nil {
@@ -227,6 +239,14 @@ func (c *carbonserverCollector) flatSender() {
 					zap.Int("packages", packages),
 					zap.Error(err),
 				)
+				msSender.Commit()
+				msSender, err = helper.NewClickhouseSender(c.db, helper.MetricStatInsertQuery, time.Now().Unix(), config.Clickhouse.RowsPerInsert)
+				if err != nil {
+					logger.Fatal("error initializing clickhouse sender",
+						zap.String("type", "metricstats"),
+						zap.Error(err),
+					)
+				}
 			}
 		}
 	}

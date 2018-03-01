@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Civil/carbonserver-flamegraphs/types"
+	"github.com/Civil/ch-flamegraphs/types"
 )
 
-func ReconstructTree(data map[uint64]types.ClickhouseField, root *types.FlameGraphNode, minValue uint64) {
+func ReconstructTree(data map[int64]types.ClickhouseField, root *types.FlameGraphNode, minValue uint64) {
 	for _, i := range root.ChildrenIds {
 		if data[i].Value > minValue {
 			node := &types.FlameGraphNode{
@@ -94,11 +94,11 @@ func (q *Query) GetStackFlamegraph(showFileNames bool) (*types.FlameGraphNode, e
 		return nil, err
 	}
 
-	data := make(map[uint64]types.ClickhouseField)
+	data := make(map[int64]types.ClickhouseField)
 	var functionName, fileName string
 	var line int64
 	var isRoot uint8
-	rootId := uint64(0)
+	rootId := int64(0)
 
 	for rows.Next() {
 		var res types.ClickhouseField

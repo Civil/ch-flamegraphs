@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Civil/carbonserver-flamegraphs/tracer"
+	"github.com/Civil/ch-flamegraphs/tracer"
 	redigo "github.com/garyburd/redigo/redis"
 	_ "github.com/go-sql-driver/mysql"
 	//	"github.com/stackimpact/stackimpact-go"

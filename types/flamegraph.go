@@ -8,13 +8,13 @@ import (
 )
 
 const (
-	RootElementId uint64 = 1
+	RootElementId int64 = 1
 
 	FieldSeparator string = "$"
 )
 
 type FlameGraphNode struct {
-	Id          uint64            `json:"-"`
+	Id          int64            `json:"-"`
 	Cluster     string            `json:"-"`
 	Name        string            `json:"name"`
 	Total       uint64             `json:"total"`
@@ -24,7 +24,7 @@ type FlameGraphNode struct {
 	ATime       int64             `json:"atime,omitempty"`
 	Count       uint64            `json:"count,omitempty"`
 	Children    []*FlameGraphNode `json:"children,omitempty"`
-	ChildrenIds []uint64          `json:"-"`
+	ChildrenIds []int64          `json:"-"`
 	Parent      *FlameGraphNode   `json:"-"`
 }
 
@@ -34,7 +34,7 @@ type sampleToNodeMap struct {
 }
 
 type StackFlameGraphNode struct {
-	Id           uint64                 `json:"id"`
+	Id           int64                 `json:"id"`
 	Application  string                 `json:"application"`
 	Instance     string                 `json:"instance"`
 	FunctionName string                 `json:"name"`
@@ -43,9 +43,9 @@ type StackFlameGraphNode struct {
 	Samples      int64                  `json:"samples"`
 	MaxSamples   int64                  `json:"maxSamples"`
 	Children     []*StackFlameGraphNode `json:"children,omitempty"`
-	ChildrenIds  []uint64               `json:"childrenIds"`
+	ChildrenIds  []int64               `json:"childrenIds"`
 	Parent       *StackFlameGraphNode   `json:"-"`
-	ParentID     uint64                 `json:"parentId"`
+	ParentID     int64                 `json:"parentId"`
 	IsRoot       uint8                  `json:"isRoot"`
 	FullName     string                 `json:"fullName"`
 
@@ -54,10 +54,16 @@ type StackFlameGraphNode struct {
 	metadata *sampleToNodeMap
 }
 
-func nameToId(name string) uint64 {
+func nameToIdInt64(name string) uint64 {
 	hash := fnv.New64a()
 	hash.Write([]byte(name))
-	return uint64(hash.Sum64())
+	return hash.Sum64()
+}
+
+func nameToId(name string) int64 {
+	hash := fnv.New64a()
+	hash.Write([]byte(name))
+	return int64(hash.Sum64())
 }
 
 func NewStackFlamegraphTree(name, instance, app string) *StackFlameGraphNode {
@@ -112,7 +118,7 @@ func (r *StackFlameGraphNode) FindOrAdd(funcName, fileName string, fileLine int6
 		root:         r.root,
 		metadata:     r.root.metadata,
 	}
-	r.ChildrenIds = append(r.ChildrenIds, uint64(s.Id))
+	r.ChildrenIds = append(r.ChildrenIds, s.Id)
 	r.Children = append(r.Children, s)
 	r.metadata.samplesToNodes[k] = s
 
@@ -134,10 +140,10 @@ type ClickhouseField struct {
 	Cluster     string
 	Name        string
 	Total       uint64
-	Id          uint64
+	Id          int64
 	Value       uint64
 	ModTime     int64
 	Level       uint64
-	ParentID    uint64
-	ChildrenIds []uint64
+	ParentID    int64
+	ChildrenIds []int64
 }

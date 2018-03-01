@@ -12,7 +12,8 @@ message AccessLogger {
     string Reason = 4;
     double Runtime = 5;
     int64 PackagesReceived = 6;
-    int64 Timestamp = 7;
-    string Cluster = 8;
-    string SourceServer = 9;
+    int64 BytesReceived = 7;
+    int64 Timestamp = 8;
+    string Cluster = 9;
+    string SourceServer = 10;
 }

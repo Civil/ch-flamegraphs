@@ -42,12 +42,8 @@ import (
 	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
 
-	"github.com/Civil/carbonserver-flamegraphs/helper"
-	"github.com/Civil/carbonserver-flamegraphs/types"
+	"github.com/Civil/ch-flamegraphs/types"
 	"github.com/google/pprof/profile"
-
-	"database/sql"
-	_ "github.com/kshvakov/clickhouse"
 )
 
 var defaultLoggerConfig = zapwriter.Config{
@@ -74,9 +70,6 @@ type StackTracer struct {
 	logger *zap.Logger
 
 	root *types.StackFlameGraphNode
-
-	clickhouse helper.ClickhouseConfig
-	db         *sql.DB
 }
 
 func NewStackTracer(config Config) *StackTracer {

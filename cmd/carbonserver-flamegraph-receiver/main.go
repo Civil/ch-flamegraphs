@@ -14,9 +14,9 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/Civil/carbonserver-flamegraphs/fglogpb"
-	fgpb "github.com/Civil/carbonserver-flamegraphs/flamegraphpb"
-	"github.com/Civil/carbonserver-flamegraphs/helper"
+	"github.com/Civil/ch-flamegraphs/fglogpb"
+	fgpb "github.com/Civil/ch-flamegraphs/flamegraphpb"
+	"github.com/Civil/ch-flamegraphs/helper"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/kshvakov/clickhouse"
 	"github.com/lomik/zapwriter"

@@ -22,7 +22,7 @@ import (
 	ecache "github.com/dgryski/go-expirecache"
 	"github.com/kshvakov/clickhouse"
 
-	"github.com/Civil/carbonserver-flamegraphs/helper"
+	"github.com/Civil/ch-flamegraphs/helper"
 )
 
 var logger *zap.Logger

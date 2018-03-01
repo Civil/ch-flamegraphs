@@ -6,11 +6,10 @@ import (
 
 	"database/sql"
 
-	_ "github.com/kshvakov/clickhouse"
-
-	fgpb "github.com/Civil/carbonserver-flamegraphs/flamegraphpb"
-	"github.com/Civil/carbonserver-flamegraphs/types"
 	"github.com/kshvakov/clickhouse"
+
+	fgpb "github.com/Civil/ch-flamegraphs/flamegraphpb"
+	"github.com/Civil/ch-flamegraphs/types"
 )
 
 type ClickhouseConfig struct {
@@ -43,14 +42,14 @@ type ClickhouseSender struct {
 	linesToBuffer int
 	lines         int
 	commitedLines int64
-	version       int64
+	version       uint64
 	now           time.Time
 	txStart       time.Time
 
 	query string
 }
 
-func NewClickhouseSender(db *sql.DB, query string, t int64, rowsPerInsert int) (*ClickhouseSender, error) {
+func NewClickhouseSender(db *sql.DB, query string, t uint64, rowsPerInsert int) (*ClickhouseSender, error) {
 	tx, stmt, err := DBStartTransaction(db, query)
 	if err != nil {
 		return nil, err
@@ -83,7 +82,7 @@ func (c *ClickhouseSender) startTransaction() error {
 func (c *ClickhouseSender) SendStacktraceTimestamp(data *types.StackFlameGraphNode) error {
 	c.lines++
 	_, err := c.stmt.Exec(
-		c.version,
+		int64(c.version),
 		data.Application,
 		data.Instance,
 		c.now,
@@ -110,12 +109,12 @@ func (c *ClickhouseSender) SendStacktraceTimestamp(data *types.StackFlameGraphNo
 func (c *ClickhouseSender) SendStacktrace(data *types.StackFlameGraphNode, fullName string) error {
 	c.lines++
 
-	parentID := uint64(0)
+	parentID := int64(0)
 	if data.Parent != nil {
 		parentID = data.Parent.Id
 	}
 	_, err := c.stmt.Exec(
-		c.version,
+		int64(c.version),
 		data.Id,
 		data.Application,
 		data.Instance,

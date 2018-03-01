@@ -1,4 +1,4 @@
-carbonserver-flamegraphs
+ch-flamegraphs
 ------------------------
 
 This tool should allow you to collect and query stats about graphite metrics (collected from carbonserver-compatible nodes, e.x. github.com/lomik/go-carbon)

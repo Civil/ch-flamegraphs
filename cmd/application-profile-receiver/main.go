@@ -15,12 +15,12 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
-	"github.com/Civil/carbonserver-flamegraphs/helper"
-	"github.com/Civil/carbonserver-flamegraphs/types"
+	"github.com/Civil/ch-flamegraphs/helper"
+	"github.com/Civil/ch-flamegraphs/types"
 
 	"github.com/NYTimes/gziphandler"
 
-	"github.com/jmoiron/sqlx"
+	"database/sql"
 	_ "github.com/kshvakov/clickhouse"
 )
 
@@ -33,7 +33,7 @@ var defaultLoggerConfig = zapwriter.Config{
 	EncodingDuration: "seconds",
 }
 
-func clickhouseSender(sender *helper.ClickhouseSender, node *types.StackFlameGraphNode, fullName string, now int64) error {
+func clickhouseSender(sender *helper.ClickhouseSender, node *types.StackFlameGraphNode, fullName string, now uint64) error {
 	var name string
 	if len(fullName) > 0 {
 		name = fullName + types.FieldSeparator + node.FunctionName
@@ -86,10 +86,10 @@ func writer(data <-chan []byte, exit <-chan struct{}) {
 				continue
 			}
 			if v.Samples == 0 {
-				logger.Warn("empty trace, skipping")
+				// logger.Warn("empty trace, skipping")
 				continue
 			}
-			now := time.Now().Unix()
+			now := uint64(time.Now().Unix())
 			sender, err := helper.NewClickhouseSender(
 				config.db,
 				"INSERT INTO stacktrace (Timestamp, ID, Application, Instance, FunctionName, FileName, Line, Samples, MaxSamples, FullName, IsRoot, ChildrenIDs, ParentID, Date, Version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -170,7 +170,7 @@ var config = struct {
 	Listen string
 
 	logger    *zap.Logger
-	db        *sqlx.DB
+	db        *sql.DB
 	writeChan chan []byte
 	exitChan  chan struct{}
 }{
@@ -182,7 +182,7 @@ var config = struct {
 		DistributedClusterName: "",
 	},
 
-	Listen: ":8080",
+	Listen: ":8180",
 }
 
 // Create table functions
@@ -204,7 +204,7 @@ func createStackTraceTable(tablePostfix, engine string) error {
 			FullName String,
 			IsRoot UInt8,
 			ChildrenIDs Array(Int64),
-			ParentID UInt64,
+			ParentID Int64,
 			Date Date,
 			Version UInt64 DEFAULT 0
 		) engine=` + engine)
@@ -227,7 +227,7 @@ func createStackTraceTimestampsTable(tablePostfix, engine string) error {
 func createLocalTables(tablePostfix string) error {
 	_, err := config.db.Exec(`
 		CREATE TABLE IF NOT EXISTS stacktrace_table_version_local (
-			SchemaVersion Int64,
+			SchemaVersion UInt64,
 			Date Date,
 			Version UInt64
 		) engine=ReplacingMergeTree(Date, (SchemaVersion, Date), 8192, Version)
@@ -371,7 +371,7 @@ func main() {
 	}
 	config.logger = zapwriter.Logger("StackTraceReceiver")
 
-	config.db, err = sqlx.Open("clickhouse", config.ClickhouseHost)
+	config.db, err = sql.Open("clickhouse", config.ClickhouseHost)
 	if err != nil {
 		logger.Fatal("error connecting to clickhouse",
 			zap.Error(err),
