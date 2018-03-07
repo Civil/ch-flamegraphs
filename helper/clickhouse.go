@@ -49,7 +49,7 @@ type ClickhouseSender struct {
 	query string
 }
 
-func NewClickhouseSender(db *sql.DB, query string, t uint64, rowsPerInsert int) (*ClickhouseSender, error) {
+func NewClickhouseSender(db *sql.DB, query string, t int64, rowsPerInsert int) (*ClickhouseSender, error) {
 	tx, stmt, err := DBStartTransaction(db, query)
 	if err != nil {
 		return nil, err
@@ -58,7 +58,7 @@ func NewClickhouseSender(db *sql.DB, query string, t uint64, rowsPerInsert int) 
 		db:            db,
 		tx:            tx,
 		stmt:          stmt,
-		version:       t,
+		version:       uint64(t),
 		now:           time.Now(),
 		txStart:       time.Now(),
 		linesToBuffer: rowsPerInsert,
@@ -265,7 +265,7 @@ func (c *ClickhouseSender) sendFgNode(stmt *sql.Stmt, level int, timestamp int64
 	return err
 }
 
-func (c *ClickhouseSender) SendFg(cluster, name string, id uint64, mtime int64, total, value, parentID uint64, childrenIds []uint64, level uint64) error {
+func (c *ClickhouseSender) SendFg(cluster, name string, id int64, mtime int64, total, value, parentID int64, childrenIds []int64, level uint64) error {
 	c.lines++
 
 	_, err := c.stmt.Exec(

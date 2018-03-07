@@ -22,7 +22,6 @@ import (
 	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/balancer"
 	_ "google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/resolver/manual"
@@ -70,7 +69,7 @@ func newCarbonserverCollector(hostname string) (*carbonserverCollector, error) {
 		grpc.WithUserAgent("carbonserver-collector-simple/cluster=" + config.Cluster + "/hostname=" + hostname),
 		grpc.WithCompressor(grpc.NewGZIPCompressor()),
 		grpc.WithDecompressor(grpc.NewGZIPDecompressor()),
-		grpc.WithBalancerBuilder(balancer.Get("roundrobin")),
+		grpc.WithBalancerName("roundrobin"),
 		grpc.WithMaxMsgSize(int(config.MaxMessageSize)),
 	}
 

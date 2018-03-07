@@ -89,7 +89,7 @@ func writer(data <-chan []byte, exit <-chan struct{}) {
 				// logger.Warn("empty trace, skipping")
 				continue
 			}
-			now := uint64(time.Now().Unix())
+			now := time.Now().Unix()
 			sender, err := helper.NewClickhouseSender(
 				config.db,
 				"INSERT INTO stacktrace (Timestamp, ID, Application, Instance, FunctionName, FileName, Line, Samples, MaxSamples, FullName, IsRoot, ChildrenIDs, ParentID, Date, Version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -101,7 +101,7 @@ func writer(data <-chan []byte, exit <-chan struct{}) {
 				)
 				continue
 			}
-			err = clickhouseSender(sender, &v, "", now)
+			err = clickhouseSender(sender, &v, "", uint64(now))
 			if err != nil {
 				logger.Error("failed to send data to database",
 					zap.Error(err),

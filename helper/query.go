@@ -9,7 +9,7 @@ import (
 	"github.com/Civil/ch-flamegraphs/types"
 )
 
-func ReconstructTree(data map[int64]types.ClickhouseField, root *types.FlameGraphNode, minValue uint64) {
+func ReconstructTree(data map[int64]types.ClickhouseField, root *types.FlameGraphNode, minValue int64) {
 	for _, i := range root.ChildrenIds {
 		if data[i].Value > minValue {
 			node := &types.FlameGraphNode{
@@ -35,7 +35,7 @@ type Query struct {
 	samples     string
 	date        string
 	samplesInt  int64
-	minValue    uint64
+	minValue    int64
 	db          *sql.DB
 
 	nameToNode map[string]*types.FlameGraphNode

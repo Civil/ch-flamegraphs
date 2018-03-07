@@ -63,7 +63,7 @@ func constructTree(root *types.FlameGraphNode, details *pb.MetricDetailsResponse
 			seenSoFar = seenSoFar + "." + part
 			if n, ok := seen[seenSoFar]; ok {
 				n.Count++
-				n.Value += uint64(data.Size_)
+				n.Value += int64(data.Size_)
 				if n.ModTime < data.ModTime {
 					n.ModTime = data.ModTime
 				}
@@ -81,9 +81,9 @@ func constructTree(root *types.FlameGraphNode, details *pb.MetricDetailsResponse
 					parent = root
 				}
 
-				v := uint64(0)
+				v := int64(0)
 				if i == l {
-					v = uint64(data.Size_)
+					v = int64(data.Size_)
 				}
 
 				m := &types.FlameGraphNode{
@@ -94,7 +94,7 @@ func constructTree(root *types.FlameGraphNode, details *pb.MetricDetailsResponse
 					ModTime: data.ModTime,
 					RdTime:  data.RdTime,
 					ATime:   data.ATime,
-					Total:   total,
+					Total:   int64(total),
 					Parent:  parent,
 				}
 				seen[seenSoFar] = m
@@ -111,9 +111,9 @@ func constructTree(root *types.FlameGraphNode, details *pb.MetricDetailsResponse
 			Id:      cnt,
 			Cluster: root.Cluster,
 			Name:    "[not-whisper]",
-			Value:   occupiedByRest,
+			Value:   int64(occupiedByRest),
 			ModTime: root.ModTime,
-			Total:   total,
+			Total:   int64(total),
 			Parent:  root,
 		}
 
@@ -201,10 +201,10 @@ func sendMetricsStatsToClickhouse(stats *pb.MetricDetailsResponse, t int64, clus
 		return
 	}
 
-	id := uint64(0)
+	id := int64(0)
 	for path, data := range stats.Metrics {
 		id++
-		err = sender.SendMetricStats(cluster, path, id, data.ModTime, data.ATime, data.RdTime, 1)
+		err = sender.SendMetricStats(t, cluster, path, data.ModTime, data.ATime, data.RdTime, 1)
 		if err != nil {
 			logger.Error("failed to execute statement",
 				zap.Error(err),
@@ -227,7 +227,7 @@ func sendMetricsStatsToClickhouse(stats *pb.MetricDetailsResponse, t int64, clus
 }
 
 func convertAndSendToClickhouse(sender *helper.ClickhouseSender, node *types.FlameGraphNode, level uint64) error {
-	parentID := uint64(0)
+	parentID := int64(0)
 	if node.Parent != nil {
 		parentID = node.Parent.Id
 	}
@@ -344,8 +344,8 @@ type details struct {
 
 type metricDetails struct {
 	details    map[string]details
-	freeSpace  uint64
-	totalSpace uint64
+	freeSpace  int64
+	totalSpace int64
 }
 
 func getDetails(ips []string, cluster string) *pb.MetricDetailsResponse {
@@ -376,8 +376,8 @@ func getDetails(ips []string, cluster string) *pb.MetricDetailsResponse {
 	}
 	wg.Wait()
 
-	maxCount := uint64(1)
-	metricsReplicationCounter := make(map[string]uint64)
+	maxCount := int64(1)
+	metricsReplicationCounter := make(map[string]int64)
 	for idx := range responses {
 		if responses[idx] == nil {
 			continue
@@ -448,7 +448,7 @@ func parseTree(cluster *types.Cluster, t int64) {
 		Cluster: cluster.Name,
 		Name:    "[disk]",
 		Value:   0,
-		Total:   details.TotalSpace,
+		Total:   int64(details.TotalSpace),
 		Parent:  nil,
 	}
 
@@ -456,8 +456,8 @@ func parseTree(cluster *types.Cluster, t int64) {
 		Id:      types.RootElementId + 1,
 		Cluster: cluster.Name,
 		Name:    "[free]",
-		Value:   details.FreeSpace,
-		Total:   details.TotalSpace,
+		Value:   int64(details.FreeSpace),
+		Total:   int64(details.TotalSpace),
 		Parent:  flameGraphTreeRoot,
 	}
 
@@ -466,7 +466,7 @@ func parseTree(cluster *types.Cluster, t int64) {
 
 	constructTree(flameGraphTreeRoot, details)
 
-	flameGraphTreeRoot.Value = details.TotalSpace
+	flameGraphTreeRoot.Value = int64(details.TotalSpace)
 
 	// Convert to clickhouse format
 	if !config.DryRun {

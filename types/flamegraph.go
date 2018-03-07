@@ -17,12 +17,12 @@ type FlameGraphNode struct {
 	Id          int64            `json:"-"`
 	Cluster     string            `json:"-"`
 	Name        string            `json:"name"`
-	Total       uint64             `json:"total"`
-	Value       uint64             `json:"value"`
+	Total       int64             `json:"total"`
+	Value       int64             `json:"value"`
 	ModTime     int64             `json:"mtime,omitempty"`
 	RdTime      int64             `json:"rdtime,omitempty"`
 	ATime       int64             `json:"atime,omitempty"`
-	Count       uint64            `json:"count,omitempty"`
+	Count       int64            `json:"count,omitempty"`
 	Children    []*FlameGraphNode `json:"children,omitempty"`
 	ChildrenIds []int64          `json:"-"`
 	Parent      *FlameGraphNode   `json:"-"`
@@ -139,9 +139,9 @@ type ClickhouseField struct {
 	GraphType   string
 	Cluster     string
 	Name        string
-	Total       uint64
+	Total       int64
 	Id          int64
-	Value       uint64
+	Value       int64
 	ModTime     int64
 	Level       uint64
 	ParentID    int64

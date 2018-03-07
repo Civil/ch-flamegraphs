@@ -207,7 +207,7 @@ func timeHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	idQuery := strconv.FormatUint(types.RootElementId, 10)
+	idQuery := strconv.FormatInt(types.RootElementId, 10)
 
 	query := "select timestamp from flamegraph where id = " + idQuery + " and cluster='" + cluster + "' order by timestamp"
 	if last {
@@ -355,7 +355,7 @@ func getHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	idQuery := strconv.FormatUint(types.RootElementId, 10)
+	idQuery := strconv.FormatInt(types.RootElementId, 10)
 
 	tsInt, err := strconv.ParseInt(ts, 10, 64)
 	if err != nil {
@@ -398,8 +398,8 @@ func getHandler(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	minValue := uint64(float64(total) * removeLowest)
-	minValueQuery := strconv.FormatUint(minValue, 10)
+	minValue := int64(float64(total) * removeLowest)
+	minValueQuery := strconv.FormatInt(minValue, 10)
 
 	rows, err = config.db.Query("SELECT timestamp, graph_type, cluster, id, name, total, " + column + ", children_ids FROM flamegraph WHERE" + where + " AND value > " + minValueQuery)
 	if err != nil {
