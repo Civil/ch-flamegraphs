@@ -69,7 +69,7 @@ func newCarbonserverCollector(hostname string) (*carbonserverCollector, error) {
 		grpc.WithUserAgent("carbonserver-collector-simple/cluster=" + config.Cluster + "/hostname=" + hostname),
 		grpc.WithCompressor(grpc.NewGZIPCompressor()),
 		grpc.WithDecompressor(grpc.NewGZIPDecompressor()),
-		grpc.WithBalancerName("roundrobin"),
+		grpc.WithBalancerName("round_robin"),
 		grpc.WithMaxMsgSize(int(config.MaxMessageSize)),
 	}
 
