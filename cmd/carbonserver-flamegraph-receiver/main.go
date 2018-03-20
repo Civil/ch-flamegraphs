@@ -260,27 +260,36 @@ func main() {
 	zap.RedirectStdLog(logger)
 
 	// Initialize DB Connection
-	db, err := sql.Open("clickhouse", config.Clickhouse.ClickhouseHost)
-	if err != nil {
-		logger.Fatal("error connecting to clickhouse",
-			zap.Error(err),
-			zap.Any("config", config),
-		)
-	}
-
-	if err = db.Ping(); err != nil {
-		if exception, ok := err.(*clickhouse.Exception); ok {
-			logger.Fatal("exception while pinging clickhouse",
-				zap.Int32("code", exception.Code),
-				zap.String("message", exception.Message),
-				zap.Any("stacktrace", exception.StackTrace),
+	waitingForInit := true
+	var db *sql.DB
+	for waitingForInit {
+		db, err = sql.Open("clickhouse", config.Clickhouse.ClickhouseHost)
+		if err != nil {
+			logger.Error("error connecting to clickhouse",
+				zap.Error(err),
 				zap.Any("config", config),
 			)
+			time.Sleep(30 * time.Second)
+			continue
 		}
-		logger.Fatal("error pinging clickhouse",
-			zap.Error(err),
-			zap.Any("config", config),
-		)
+
+		if err = db.Ping(); err != nil {
+			if exception, ok := err.(*clickhouse.Exception); ok {
+				logger.Error("exception while pinging clickhouse",
+					zap.Int32("code", exception.Code),
+					zap.String("message", exception.Message),
+					zap.Any("stacktrace", exception.StackTrace),
+					zap.Any("config", config),
+				)
+			}
+			logger.Error("error pinging clickhouse",
+				zap.Error(err),
+				zap.Any("config", config),
+			)
+			time.Sleep(30 * time.Second)
+			continue
+		}
+		waitingForInit = false
 	}
 
 	migrateOrCreateTables(db)

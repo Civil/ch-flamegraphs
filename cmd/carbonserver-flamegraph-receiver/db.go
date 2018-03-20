@@ -2,7 +2,6 @@ package main
 
 import (
 	"strings"
-	"time"
 
 	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
@@ -36,12 +35,12 @@ func getClusters(db *sql.DB) ([]string, error) {
 }
 
 const (
-	schema_version uint64 = 1
+	schema_version = "v1"
 )
 
 // (type, cluster, timestamp, date
-func createTimestampsTable(db *sql.DB, tablePostfix, engine string) error {
-	_, err := db.Exec("CREATE TABLE IF NOT EXISTS flamegraph_timestamps" + tablePostfix + ` (
+func createTimestampsTable(db *sql.DB, tablePostfix, engine, cluster string) error {
+	_, err := db.Exec("CREATE TABLE IF NOT EXISTS flamegraph_timestamps" + tablePostfix + cluster + ` (
 			type String,
 			cluster String,
 			server String,
@@ -61,12 +60,12 @@ func createTimestampsTable(db *sql.DB, tablePostfix, engine string) error {
 	return nil
 }
 
-func createMetricStatsTable(db *sql.DB, tablePostfix, engine string) error {
-	_, err := db.Exec("CREATE TABLE IF NOT EXISTS metricstats" + tablePostfix + ` (
+func createMetricStatsTable(db *sql.DB, tablePostfix, engine, cluster string) error {
+	_, err := db.Exec("CREATE TABLE IF NOT EXISTS metricstats" + tablePostfix + cluster + ` (
 			timestamp Int64,
 			type String,
 			cluster String,
-	        server String,
+		        server String,
 			name String,
 			mtime Int64,
 			atime Int64,
@@ -81,9 +80,8 @@ func createMetricStatsTable(db *sql.DB, tablePostfix, engine string) error {
 	return nil
 }
 
-
-func createFlameGraphTable(db *sql.DB, tablePostfix, engine string) error {
-	_, err := db.Exec("CREATE TABLE IF NOT EXISTS flamegraph" + tablePostfix + ` (
+func createFlameGraphTable(db *sql.DB, tablePostfix, engine, cluster string) error {
+	_, err := db.Exec("CREATE TABLE IF NOT EXISTS flamegraph" + tablePostfix + cluster + ` (
 			timestamp Int64,
 			type String,
 			cluster String,
@@ -106,9 +104,8 @@ func createFlameGraphTable(db *sql.DB, tablePostfix, engine string) error {
 	return nil
 }
 
-
-func createFlameGraphClusterTable(db *sql.DB, tablePostfix, engine string) error {
-	_, err := db.Exec("CREATE TABLE IF NOT EXISTS flamegraph_clusters" + tablePostfix + ` (
+func createFlameGraphClusterTable(db *sql.DB, tablePostfix, engine, cluster string) error {
+	_, err := db.Exec("CREATE TABLE IF NOT EXISTS flamegraph_clusters" + tablePostfix + cluster + `(
 			type String,
 			cluster String,
 			date Date,
@@ -122,67 +119,83 @@ func createFlameGraphClusterTable(db *sql.DB, tablePostfix, engine string) error
 	return nil
 }
 
-func createLocalTables(db *sql.DB, tablePostfix string) error {
+func createTableVersion(db *sql.DB, tablePostfix, engine, cluster string) error {
 	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS flamegraph_table_version_local (
+		CREATE TABLE IF NOT EXISTS flamegraph_table_version` + tablePostfix + cluster + ` (
 			schema_version UInt64,
 			date Date,
 			version UInt64
-		) engine=ReplacingMergeTree(date, (schema_version, date), 8192, version)
-	`)
-
-	if err != nil {
-		return err
-	}
-
-	err = createTimestampsTable(db, tablePostfix, "MergeTree(date, (type, cluster, timestamp, server, date), 8192)")
-	if err != nil {
-		return err
-	}
-
-	err = createMetricStatsTable(db, tablePostfix, "MergeTree(date, (timestamp, cluster, type, mtime, atime, rdtime, name, server, date), 8192)")
-	if err != nil {
-		return err
-	}
-
-	err = createFlameGraphTable(db, tablePostfix, "MergeTree(date, (timestamp, cluster, type, id, parent_id, level, value, name, mtime, server, date), 8192)")
-	if err != nil {
-		return err
-	}
-
-	err = createFlameGraphClusterTable(db, tablePostfix, "MergeTree(date, (type, cluster, date), 8192)")
+		) engine=` + engine)
 
 	return err
 }
 
-func createDistributedTables(db *sql.DB) error {
-	err := createTimestampsTable(db, "", "Distributed(flamegraph, 'default', 'flamegraph_timestamps_local', timestamp)")
+func createLocalTables(db *sql.DB, tablePostfix, cluster string) error {
+	err := createTableVersion(db, "_"+schema_version, "MergeTree PARTITION BY toYYYYMMDD(date) ORDER BY (schema_version, date)", cluster)
 	if err != nil {
 		return err
 	}
 
-	err = createMetricStatsTable(db, "", "Distributed(flamegraph, 'default', 'metricstats_local', sipHash64(name))")
+	err = createTimestampsTable(db, tablePostfix, "MergeTree PARTITION BY toYYYYMMDD(date) ORDER BY (type, cluster, timestamp, server, date)", cluster)
 	if err != nil {
 		return err
 	}
 
-	err = createFlameGraphTable(db, "", "Distributed(flamegraph, 'default', 'flamegraph_local', sipHash64(name))")
+	err = createMetricStatsTable(db, tablePostfix, "MergeTree PARTITION BY toYYYYMMDD(date) ORDER BY (timestamp, cluster, type, mtime, atime, rdtime, name, server, date)", cluster)
 	if err != nil {
 		return err
 	}
 
-	err = createFlameGraphClusterTable(db, "", "Distributed(flamegraph, 'default', 'flamegraph_clusters_local', sipHash64(cluster))")
+	err = createFlameGraphTable(db, tablePostfix, "MergeTree PARTITION BY toYYYYMMDD(date) ORDER BY (timestamp, cluster, type, id, parent_id, level, value, name, mtime, server, date)", cluster)
+	if err != nil {
+		return err
+	}
+
+	err = createFlameGraphClusterTable(db, tablePostfix, "MergeTree PARTITION BY toYYYYMMDD(date) ORDER BY (type, cluster, date)", cluster)
+
+	return err
+}
+
+func createDistributedTables(db *sql.DB, cluster string) error {
+	err := createTimestampsTable(db, "", "Distributed(flamegraph, 'default', 'flamegraph_timestamps_local', timestamp)", cluster)
+	if err != nil {
+		return err
+	}
+
+	err = createMetricStatsTable(db, "", "Distributed(flamegraph, 'default', 'metricstats_local', sipHash64(name))", cluster)
+	if err != nil {
+		return err
+	}
+
+	err = createFlameGraphTable(db, "", "Distributed(flamegraph, 'default', 'flamegraph_local', sipHash64(name))", cluster)
+	if err != nil {
+		return err
+	}
+
+	err = createFlameGraphClusterTable(db, "", "Distributed(flamegraph, 'default', 'flamegraph_clusters_local', sipHash64(cluster))", cluster)
 	return err
 }
 
 func migrateOrCreateTables(db *sql.DB) {
 	logger := zapwriter.Logger("migrations")
+
+	// Check version of the table schema if any version is present
+	_, err := db.Query("DESCRIBE TABLE flamegraph_table_version_" + schema_version)
+	if err == nil {
+		// Table exists, that means that schema version is exaclty what we expect
+		return
+	}
+
 	tablePostfix := ""
 	if config.Clickhouse.UseDistributedTables {
 		tablePostfix = "_local"
 	}
+	cluster := ""
+	if config.Clickhouse.Cluster != "" {
+		cluster = " ON CLUSTER " + config.Clickhouse.Cluster
+	}
 
-	err := createLocalTables(db, tablePostfix)
+	err = createLocalTables(db, tablePostfix, cluster)
 	if err != nil {
 		logger.Fatal("failed to create tables",
 			zap.Error(err),
@@ -191,64 +204,9 @@ func migrateOrCreateTables(db *sql.DB) {
 	}
 
 	if config.Clickhouse.UseDistributedTables {
-		err := createDistributedTables(db)
+		err := createDistributedTables(db, cluster)
 		if err != nil {
 			logger.Fatal("failed to create tables",
-				zap.Error(err),
-			)
-		}
-	}
-
-	// Check version of the table schema if any version is present
-
-	rows, err := db.Query("SELECT max(schema_version) FROM flamegraph_table_version_local")
-	if err != nil {
-		logger.Fatal("Error during database query",
-			zap.Error(err),
-		)
-	}
-	version := uint64(0)
-	for rows.Next() {
-		err = rows.Scan(&version)
-		if err != nil {
-			logger.Warn("Error getting version",
-				zap.Error(err),
-			)
-		}
-	}
-
-	if version != schema_version {
-		date := time.Unix(1, 0)
-		versionDb := uint64(time.Now().Unix())
-
-		tx, err := db.Begin()
-		if err != nil {
-			logger.Fatal("Error updating version",
-				zap.Error(err),
-			)
-		}
-
-		stmt, err := tx.Prepare("INSERT INTO flamegraph_table_version_local (schema_version, date, version) VALUES (?, ?, ?)")
-		if err != nil {
-			logger.Fatal("Error updating version",
-				zap.Error(err),
-			)
-		}
-
-		_, err = stmt.Exec(
-			schema_version,
-			date,
-			versionDb,
-		)
-		if err != nil {
-			logger.Fatal("Error updating version",
-				zap.Error(err),
-			)
-		}
-
-		err = tx.Commit()
-		if err != nil {
-			logger.Fatal("Error updating version",
 				zap.Error(err),
 			)
 		}

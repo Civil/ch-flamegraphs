@@ -14,6 +14,7 @@ import (
 
 type ClickhouseConfig struct {
 	ClickhouseHost string `yaml:"host"`
+	Cluster        string `yaml:"cluster"`
 	RowsPerInsert  int    `yaml:"rows_per_insert"`
 
 	UseDistributedTables   bool   `yaml:"use_distributed_tables"`
