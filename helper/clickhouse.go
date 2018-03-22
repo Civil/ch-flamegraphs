@@ -217,6 +217,35 @@ func (c *ClickhouseSender) SendFlatFgPB(node *fgpb.FlameGraphFlat) error {
 	return nil
 }
 
+const (
+	FlamegraphClusterInsertQuery = "INSERT INTO flamegraph_clusters (type, cluster, date, server, version) VALUES (?, ?, ?, ?, ?)"
+)
+
+func (c *ClickhouseSender) SendCluster(cluster, server string) error {
+	tx, stmt, err := DBStartTransaction(c.db, FlamegraphClusterInsertQuery)
+	if err != nil {
+		return err
+	}
+
+	_, err = stmt.Exec(
+		"graphite_metrics",
+		cluster,
+		c.now,
+		server,
+		uint64(c.now.Unix()),
+	)
+	if err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (c *ClickhouseSender) SendFgPB(tree *fgpb.FlameGraph) error {
 	tx, stmt, err := DBStartTransaction(c.db, FlamegraphInsertQuery)
 	if err != nil {

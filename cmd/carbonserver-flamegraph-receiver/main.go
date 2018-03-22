@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"sync"
 	"expvar"
 	"flag"
 	"fmt"
@@ -141,6 +142,17 @@ func (c *carbonserverCollector) sender() {
 					zap.Error(err),
 				)
 			}
+			knownClusters.Lock()
+			if _, ok := knownClusters.names[fg.Cluster]; !ok {
+				knownClusters.names[fg.Cluster] = struct{}{}
+				err := sender.SendCluster(fg.Cluster, fg.Server)
+				if err != nil {
+					logger.Error("failed to send cluster name",
+						zap.Error(err),
+					)
+				}
+			}
+			knownClusters.Unlock()
 		}
 	}
 }
@@ -214,6 +226,15 @@ func validateConfig() {
 
 // BuildVersion is defined at build and reported at startup and as expvar
 var BuildVersion = "(development version)"
+
+type clusters struct {
+	sync.RWMutex
+	names map[string]struct{}
+}
+
+var knownClusters = clusters{
+	names: make(map[string]struct{}),
+}
 
 func main() {
 	// var flameGraph flameGraphNode
@@ -293,6 +314,17 @@ func main() {
 	}
 
 	migrateOrCreateTables(db)
+
+	c, err := getClusters(db)
+	if err != nil {
+		logger.Fatal("failed to get list of clusters",
+			zap.Error(err),
+		)
+	}
+
+	for _, cl := range c {
+		knownClusters.names[cl] = struct{}{}
+	}
 
 	// Initialize Collector
 	collector, err := newCarbonserverCollector(db)

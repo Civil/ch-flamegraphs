@@ -69,7 +69,7 @@ func getClusters() ([]string, error) {
 		return nil, err
 	}
 
-	query := "select distinct groupUniqArray(cluster) from flamegraph_clusters where graph_type='graphite_metrics'"
+	query := "select distinct groupUniqArray(cluster) from flamegraph_clusters"
 
 	var resp []string
 	rows, err := config.db.Query(query)
@@ -401,7 +401,7 @@ func getHandler(w http.ResponseWriter, req *http.Request) {
 	minValue := int64(float64(total) * removeLowest)
 	minValueQuery := strconv.FormatInt(minValue, 10)
 
-	rows, err = config.db.Query("SELECT timestamp, graph_type, cluster, id, name, total, " + column + ", children_ids FROM flamegraph WHERE" + where + " AND value > " + minValueQuery)
+	rows, err = config.db.Query("SELECT timestamp, cluster, id, name, total, " + column + ", children_ids FROM flamegraph WHERE" + where + " AND value > " + minValueQuery)
 	if err != nil {
 		logger.Error("Error during database query",
 			zap.Duration("runtime", time.Since(t0)),
@@ -416,7 +416,7 @@ func getHandler(w http.ResponseWriter, req *http.Request) {
 	data := make(map[int64]types.ClickhouseField)
 	for rows.Next() {
 		var res types.ClickhouseField
-		err := rows.Scan(&res.Timestamp, &res.GraphType, &res.Cluster, &res.Id, &res.Name, &res.Total, &res.Value, &res.ChildrenIds)
+		err := rows.Scan(&res.Timestamp, &res.Cluster, &res.Id, &res.Name, &res.Total, &res.Value, &res.ChildrenIds)
 		if err != nil {
 			logger.Error("Error getting data",
 				zap.Duration("runtime", time.Since(t0)),

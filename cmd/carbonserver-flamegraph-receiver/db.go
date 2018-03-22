@@ -14,7 +14,7 @@ func getClusters(db *sql.DB) ([]string, error) {
 		return nil, err
 	}
 
-	query := "select groupUniqArray(cluster) from flamegraph_clusters where type='graphite_metrics'"
+	query := "select groupUniqArray(cluster) from flamegraph_clusters"
 
 	var resp []string
 	rows, err := db.Query(query)
