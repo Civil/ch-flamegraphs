@@ -454,6 +454,9 @@ func (c *ClickhouseSender) SendMetricStats(timestamp int64, cluster, path string
 }
 
 func (c *ClickhouseSender) Commit() (int64, error) {
+	if c.tx == nil {
+		return 0, fmt.Errorf("no transaction running")
+	}
 	c.commitedLines += int64(c.lines)
 	return c.commitedLines, c.tx.Commit()
 }
