@@ -113,16 +113,16 @@ func newCarbonserverCollector(hostname string) (*carbonserverCollector, error) {
 }
 
 func (c *carbonserverCollector) constructTree(root *fgpb.FlameGraphNode, details *pb.MetricDetailsResponse) {
-	total := details.TotalSpace
-	occupiedByMetrics := uint64(0)
+	total := int64(details.TotalSpace)
+	occupiedByMetrics := int64(0)
 	seen := make(map[string]*fgpb.FlameGraphNode)
-	parentMapping := make(map[uint64]*fgpb.FlameGraphNode)
+	parentMapping := make(map[int64]*fgpb.FlameGraphNode)
 	var seenSoFar string
 	var seenSoFarPrev string
 	seenSoFarBase := "[disk]"
 
 	for metric, data := range details.Metrics {
-		occupiedByMetrics += uint64(data.Size_)
+		occupiedByMetrics += int64(data.Size_)
 		seenSoFar = seenSoFarBase
 		parts := strings.Split(metric, ".")
 		l := len(parts) - 1
@@ -134,7 +134,7 @@ func (c *carbonserverCollector) constructTree(root *fgpb.FlameGraphNode, details
 			seenSoFar = seenSoFar + "." + part
 			if n, ok := seen[seenSoFar]; ok {
 				n.Count++
-				n.Value += uint64(data.Size_)
+				n.Value += int64(data.Size_)
 				if n.ModTime < data.ModTime {
 					n.ModTime = data.ModTime
 				}
@@ -153,12 +153,12 @@ func (c *carbonserverCollector) constructTree(root *fgpb.FlameGraphNode, details
 				}
 				parentMapping[parent.Id] = parent
 
-				v := uint64(0)
+				v := int64(0)
 				if i == l {
-					v = uint64(data.Size_)
+					v = int64(data.Size_)
 				}
 
-				id := helper.NameToIdUint64(seenSoFar)
+				id := helper.NameToIdInt64(seenSoFar)
 				m := &fgpb.FlameGraphNode{
 					Id:       id,
 					Name:     seenSoFar,
@@ -176,9 +176,9 @@ func (c *carbonserverCollector) constructTree(root *fgpb.FlameGraphNode, details
 		}
 	}
 
-	if occupiedByMetrics+details.FreeSpace < total {
-		occupiedByRest := total - occupiedByMetrics - details.FreeSpace
-		id := helper.NameToIdUint64("[disk].[not-whisper]")
+	if occupiedByMetrics+int64(details.FreeSpace) < total {
+		occupiedByRest := total - occupiedByMetrics - int64(details.FreeSpace)
+		id := helper.NameToIdInt64("[disk].[not-whisper]")
 		m := &fgpb.FlameGraphNode{
 			Id:       id,
 			Name:     "[disk].[not-whisper]",
@@ -192,7 +192,7 @@ func (c *carbonserverCollector) constructTree(root *fgpb.FlameGraphNode, details
 		root.Children = append(root.Children, m)
 	} else {
 		logger.Error("occupiedByMetrics > totalSpace-freeSpace",
-			zap.Uint64("occupied_by_metrics", occupiedByMetrics),
+			zap.Int64("occupied_by_metrics", occupiedByMetrics),
 			zap.Uint64("free_space", details.FreeSpace),
 			zap.Uint64("total_space", details.TotalSpace),
 		)
@@ -366,18 +366,18 @@ func (c *carbonserverCollector) createTree(ctx context.Context, timestamp int64)
 	}
 
 	flameGraphTreeRoot := &fgpb.FlameGraphNode{
-		Id:       helper.NameToIdUint64("[disk]"),
+		Id:       helper.NameToIdInt64("[disk]"),
 		Name:     "[disk]",
 		Value:    0,
-		Total:    details.TotalSpace,
+		Total:    int64(details.TotalSpace),
 		ParentID: 0,
 	}
 
 	freeSpaceNode := &fgpb.FlameGraphNode{
-		Id:       helper.NameToIdUint64("[disk].[free]"),
+		Id:       helper.NameToIdInt64("[disk].[free]"),
 		Name:     "[disk].[free]",
-		Value:    details.FreeSpace,
-		Total:    details.TotalSpace,
+		Value:    int64(details.FreeSpace),
+		Total:    int64(details.TotalSpace),
 		ParentID: flameGraphTreeRoot.Id,
 	}
 
@@ -388,12 +388,12 @@ func (c *carbonserverCollector) createTree(ctx context.Context, timestamp int64)
 		Tree:      flameGraphTreeRoot,
 	}
 
-	flameGraphTreeRoot.ChildrenIds = append(flameGraphTreeRoot.ChildrenIds, helper.NameToIdUint64("[disk].[free]"))
+	flameGraphTreeRoot.ChildrenIds = append(flameGraphTreeRoot.ChildrenIds, helper.NameToIdInt64("[disk].[free]"))
 	flameGraphTreeRoot.Children = append(flameGraphTreeRoot.Children, freeSpaceNode)
 
 	c.constructTree(flameGraphTreeRoot, details)
 
-	flameGraphTreeRoot.Value = details.TotalSpace
+	flameGraphTreeRoot.Value = int64(details.TotalSpace)
 
 	// Convert to clickhouse format
 	if !config.DryRun {

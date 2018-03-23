@@ -140,6 +140,7 @@ func (c *carbonserverCollector) flatSender() {
 		logger.Fatal("error initializing clickhouse sender",
 			zap.String("type", "flamegraph"),
 			zap.Error(err),
+			zap.Stack("stack"),
 		)
 	}
 
@@ -148,6 +149,7 @@ func (c *carbonserverCollector) flatSender() {
 		logger.Fatal("error initializing clickhouse sender",
 			zap.String("type", "metricstats"),
 			zap.Error(err),
+			zap.Stack("stack"),
 		)
 	}
 
