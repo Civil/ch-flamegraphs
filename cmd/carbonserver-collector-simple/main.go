@@ -295,7 +295,6 @@ func (c *carbonserverCollector) sendMetricstats(ctx context.Context, timestamp i
 	if err != nil {
 		return err
 	}
-	defer sender.CloseAndRecv()
 
 	for k, v := range details.Metrics {
 		flatStat := &fgpb.FlatMetricInfo{
@@ -311,11 +310,24 @@ func (c *carbonserverCollector) sendMetricstats(ctx context.Context, timestamp i
 		}
 		err = sender.Send(flatStat)
 		if err != nil {
-			return err
+			logger.Error("failed to send metricstats",
+				zap.Error(err),
+				zap.Stack("stack"),
+			)
+			_, err2 := sender.CloseAndRecv()
+			if err2 != nil {
+				logger.Error("failed to close stream",
+					zap.Error(err2),
+					zap.Stack("stack"),
+				)
+			}
+			return fmt.Errorf("failed to send metricstats: %v", err)
 		}
 	}
 
-	return nil
+	_, err = sender.CloseAndRecv()
+
+	return err
 }
 
 func (c *carbonserverCollector) createTree(ctx context.Context, timestamp int64) (err error) {
@@ -460,10 +472,26 @@ func (c *carbonserverCollector) streamFlamegraph(ctx context.Context, root *fgpb
 	if err != nil {
 		return err
 	}
-	defer sender.CloseAndRecv()
 
 	err = c.streamFlamegraphNode(ctx, root.Tree, sender, int64(helper.BaseLevel), root.Timestamp)
 
+	if err != nil {
+		logger.Error("failed to send flamegraphs",
+			zap.Error(err),
+			zap.Stack("stack"),
+		)
+	}
+
+	_, err2 := sender.CloseAndRecv()
+	if err2 != nil {
+		logger.Error("failed to close stream",
+			zap.Error(err2),
+			zap.Stack("stack"),
+		)
+		if err == nil {
+			err = err2
+		}
+	}
 	return err
 }
 
