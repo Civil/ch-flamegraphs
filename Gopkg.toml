@@ -43,7 +43,7 @@
 
 [[constraint]]
   name = "github.com/go-graphite/carbonzipper"
-  version = "0.74.0"
+  version = "0.72.0"
 
 [[constraint]]
   name = "github.com/go-sql-driver/mysql"
@@ -51,7 +51,7 @@
 
 [[constraint]]
   name = "github.com/gogo/protobuf"
-  version = "0.4.0"
+  version = "1.0.0"
 
 [[constraint]]
   name = "github.com/golang/protobuf"
@@ -79,7 +79,7 @@
 
 [[constraint]]
   name = "google.golang.org/grpc"
-  version = "1.10.0"
+  version = "1.11.0"
 
 [[constraint]]
   branch = "v2"
@@ -91,7 +91,7 @@
 
 [[constraint]]
   name = "gopkg.in/yaml.v2"
-  version = "2.1.1"
+  version = "2.2.0"
 
 [prune]
   go-tests = true

@@ -31,8 +31,8 @@
 [[projects]]
   name = "github.com/go-graphite/carbonzipper"
   packages = ["carbonzipperpb3"]
-  revision = "54ed0747e074cb0f705f00f90df22387c5824763"
-  version = "0.74"
+  revision = "d1a3cec4169b36e03e62c374a583bb85c6a4172a"
+  version = "0.72"
 
 [[projects]]
   name = "github.com/go-sql-driver/mysql"
@@ -47,8 +47,8 @@
     "proto",
     "protoc-gen-gogo/descriptor"
   ]
-  revision = "100ba4e885062801d56799d78530b73b178a78f3"
-  version = "v0.4"
+  revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/golang/protobuf"
@@ -67,7 +67,7 @@
   branch = "master"
   name = "github.com/google/pprof"
   packages = ["profile"]
-  revision = "63f29708e4cd6f9bff69088b3361a46ae669a4a6"
+  revision = "2e397545a68de326eee18011decf2edc2d5f5d7d"
 
 [[projects]]
   name = "github.com/kshvakov/clickhouse"
@@ -153,7 +153,7 @@
   branch = "master"
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
-  revision = "f8c8703595236ae70fdf8789ecb656ea0bcdcf46"
+  revision = "ab0870e398d5dd054b868c0db1481ab029b9a9f2"
 
 [[projects]]
   name = "google.golang.org/grpc"
@@ -183,8 +183,8 @@
     "tap",
     "transport"
   ]
-  revision = "8e4536a86ab602859c20df5ebfd0bd4228d08655"
-  version = "v1.10.0"
+  revision = "afc05b9e1d36f289ea16ba294894486a3e458246"
+  version = "v1.11.0"
 
 [[projects]]
   branch = "v2"
@@ -214,12 +214,12 @@
 [[projects]]
   name = "gopkg.in/yaml.v2"
   packages = ["."]
-  revision = "7f97868eec74b32b0982dd158a51a446d1da7eb5"
-  version = "v2.1.1"
+  revision = "86f5ed62f8a0ee96bd888d2efdfd6d4fb100a4eb"
+  version = "v2.2.0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b4c4d126ea67ffdef820284084add540f1bf15552175bf067faf6a7e540cadec"
+  inputs-digest = "bd197d3d47f89926b6fab97a59c9a5dd5690d9f7c85d146938f144f97fd3aefa"
   solver-name = "gps-cdcl"
   solver-version = 1
