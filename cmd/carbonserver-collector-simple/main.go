@@ -22,10 +22,12 @@ import (
 	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 	_ "google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/resolver/manual"
 	"gopkg.in/yaml.v2"
+	"io"
 )
 
 var defaultLoggerConfig = zapwriter.Config{
@@ -71,6 +73,11 @@ func newCarbonserverCollector(hostname string) (*carbonserverCollector, error) {
 		grpc.WithDecompressor(grpc.NewGZIPDecompressor()),
 		grpc.WithBalancerName("round_robin"),
 		grpc.WithMaxMsgSize(int(config.MaxMessageSize)),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time: 10 * time.Minute,
+			Timeout: 20 * time.Second,
+			PermitWithoutStream: true,
+		}),
 	}
 
 	if config.ConnectOptions.Insecure {
@@ -368,7 +375,7 @@ func (c *carbonserverCollector) createTree(ctx context.Context, timestamp int64)
 		go func() {
 			wg.Add(1)
 			err := c.sendMetricstats(ctx, timestamp, details)
-			if err != nil {
+			if err != nil && err != io.EOF {
 				logger.Error("error sending metricstats",
 					zap.Error(err),
 				)
@@ -412,7 +419,7 @@ func (c *carbonserverCollector) createTree(ctx context.Context, timestamp int64)
 		go func() {
 			wg.Add(1)
 			err := c.streamFlamegraph(ctx, flameGraph)
-			if err != nil {
+			if err != nil && err != io.EOF {
 				logger.Error("failed sending flamegraph",
 					zap.Error(err),
 				)

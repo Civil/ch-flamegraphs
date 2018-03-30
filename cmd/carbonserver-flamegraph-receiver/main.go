@@ -23,6 +23,7 @@ import (
 	"github.com/lomik/zapwriter"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 	_ "google.golang.org/grpc/balancer/roundrobin"
 	"gopkg.in/yaml.v2"
 )
@@ -45,6 +46,7 @@ type carbonserverCollector struct {
 	root         *fgpb.FlameGraphNode
 	maxTries     int
 	fetchTimeout time.Duration
+	chServers []string
 
 	client  fgpb.FlamegraphV1Client
 	cleanup func()
@@ -159,6 +161,7 @@ func (c *carbonserverCollector) sender() {
 
 func newCarbonserverCollector(db *sql.DB) (*carbonserverCollector, error) {
 	collector := carbonserverCollector{
+		chServers: config.Clickhouse.ClickhouseServers,
 		db:                 db,
 		metricStatChan:     make(chan *fgpb.MultiMetricStats, 1024),
 		flamegraphChan:     make(chan *fgpb.FlameGraph, 1024),
@@ -172,7 +175,7 @@ func newCarbonserverCollector(db *sql.DB) (*carbonserverCollector, error) {
 	}
 
 	go collector.flatSender()
-	go collector.sender()
+	// go collector.sender()
 
 	return &collector, nil
 }
@@ -356,6 +359,10 @@ func main() {
 		grpc.RPCCompressor(grpc.NewGZIPCompressor()),
 		grpc.MaxRecvMsgSize(int(config.MaxRecvMessageSize)),
 		grpc.MaxSendMsgSize(int(config.MaxSendMessageSize)),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime: 30 * time.Second,
+			PermitWithoutStream: true,
+		}),
 	)
 	fgpb.RegisterFlamegraphV1Server(grpcServer, collector)
 
