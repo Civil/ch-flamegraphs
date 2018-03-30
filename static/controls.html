@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!--
+        Bootstrap 3.3.7
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+        End of Bootstrap 3.3.7
+    -->
+
+    <!--
+         Bootstrap 4.0 alpha6
+    -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.1.1.slim.min.js" integrity="sha384-A7FZj7v+d/sdmMqp/nOQwliLvUsJfDHW+k9Omg/a/EheAdgtzNs3hpfag6Ed950n" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tether/1.4.0/js/tether.min.js" integrity="sha384-DztdAPBWPRXSA/3eYEEUWrWCy7G5KFbe8fFjk5JAIxUYHKkDx6Qin1DkWx51bBrb" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/js/bootstrap.min.js" integrity="sha384-vBWWzlZJ8ea9aCX4pEW3rVHjgjt7zpkNpZk+02D9phzyeVkE+jo0ieGizqPLForn" crossorigin="anonymous"></script>
+    <!--
+         End of Bootstrap 4.0 alpha 6
+    -->
+
+    <link rel="stylesheet" type="text/css" href="d3.flameGraph.css">
+
+    <style>
+
+    /* Space out content a bit */
+    body {
+      padding-top: 20px;
+      padding-bottom: 20px;
+    }
+
+    /* Custom page header */
+    .header {
+      padding-bottom: 20px;
+      padding-left: 15px;
+      border-bottom: 1px solid #e5e5e5;
+    }
+
+    /* Make the masthead heading the same height as the navigation */
+    .header h3 {
+      margin-top: 0;
+      margin-bottom: 0;
+      line-height: 40px;
+    }
+
+    .container {
+      margin-left: 0;
+      margin-right: 0;
+    }
+
+    /* Customize container */
+    </style>
+
+    <title>Metrics distribution graph</title>
+
+    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="container">
+      <div class="header clearfix">
+        <nav>
+          <div class="pull-right">
+            <form class="form-inline" id="form">
+                Cluster: <select id="clusters" onchange="changeCluster()"></select>
+                Timestamp: <select id="timestamp" onchange="changeTimestamp()"></select>
+		Show mtime: <input type="checkbox" id="mtime" value="true" onchange="changeMtime()">
+              <a class="btn" href="javascript: resetZoom();">Reset zoom</a>
+              <a class="btn" href="javascript: clear();">Clear</a>
+              <div class="form-group">
+                <input type="text" class="form-control" id="term">
+              </div>
+              <a class="btn btn-primary" href="javascript: search();">Search</a>
+            </form>
+          </div>
+        </nav>
+        <h3 class="text-muted">Graphtie Disk Space Distribution</h3>
+      </div>
+      <div id="chart">
+      </div>
+      <hr>
+      <div id="details">
+      </div>
+    </div>
+
+    <script type="text/javascript" src="d3/d3.js"></script>
+    <script type="text/javascript" src="d3-tip/index.js"></script>
+    <script type="text/javascript" src="lodash/lodash.js"></script>
+    <script type="text/javascript" src="d3.flameGraph.js"></script>
+
+    <script type="text/javascript">
+    var cluster = "";
+    var timestamp = 0;
+    var mtime = false;
+    var root = "http://localhost:8088"
+//    var root = "http://graphitefetest-1001"
+
+    function changeMtime() {
+        mtime_v = document.getElementById("mtime").value;
+        if (mtime_v === "true") {
+            mtime = true;
+        } else {
+	    mtime = false;
+	}
+    }
+
+    function processParameters() {
+        var requestedCluster = "";
+        var requestedTimestamp = 0;
+        var clusters_select = document.getElementById("clusters");
+        var timestamp_select = document.getElementById("timestamp");
+        var parameters = location.search.substring(1).split("&");
+        for (var key in parameters) {
+            var temp = parameters[key].split("=");
+            if (temp[0] === "cluster") {
+                requestedCluster = temp[1].match(/^[a-zA-Z]+/) || "";
+            }
+            if (temp[0] === "ts") {
+                requestedTimestamp = temp[1].match(/^[0-9]+/)[0] || 0;
+            }
+        }
+
+        console.log(requestedTimestamp);
+
+        d3.json(root + "/clusters/", function (error, data) {
+            html = "";
+            for (var key in data) {
+                html += "<option value=" + data[key] + ">" + data[key] + "</option>";
+            }
+            document.getElementById("clusters").innerHTML = html;
+            if (requestedCluster === "") {
+                cluster = data[0];
+            } else {
+                cluster = requestedCluster;
+                clusters_select.value = cluster;
+            }
+            populateTimestamps(cluster)
+        });
+    }
+
+    processParameters();
+
+    var flameGraph = d3.flameGraph()
+      .height(0.6*window.innerHeight)
+      .width(0.9*window.innerWidth)
+      .cellHeight(18)
+      .transitionDuration(750)
+      .transitionEase('cubic-in-out')
+      .sort(true)
+      //Example to sort in reverse order
+      //.sort(function(a,b){ return d3.descending(a.name, b.name);})
+      .title("")
+      .onClick(onClick);
+
+
+    // Example on how to use custom tooltips using d3-tip.
+    var tip = d3.tip()
+      .direction("s")
+      .offset([8, 0])
+      .attr('class', 'd3-flame-graph-tip')
+      .html(function(d) { return "name: " + d.name + ", value: " + d.value; });
+
+    flameGraph.tooltip(tip);
+
+    // Example on how to use custom labels
+    // var label = function(d) {
+    //  return "name: " + d.name + ", value: " + d.value;
+    // }
+
+    // flameGraph.label(label);
+
+    document.getElementById("form").addEventListener("submit", function(event){
+      event.preventDefault();
+      search();
+    });
+
+    function search() {
+      var term = document.getElementById("term").value;
+      flameGraph.search(term);
+    }
+
+    function changeCluster() {
+        cluster = document.getElementById("clusters").value;
+        history.replaceState({}, cluster, "?cluster=" + cluster);
+        populateTimestamps(cluster);
+    }
+
+    function populateTimestamps(cluster) {
+        d3.json(root + "/time/?cluster=" + cluster, function (error, data) {
+            html = "";
+            for (var key in data['Timestamps']) {
+                html += "<option value=" + data['Timestamps'][key] + ">" + data['Timestamps'][key] + "</option>"
+            }
+            document.getElementById("timestamp").innerHTML = html;
+            d3.json(root + "/time/?cluster=" + cluster + "&last=true", function (error, data, callback) {
+                timestamp = data['Timestamps'][0];
+                    changeTimestamp()
+            });
+        });
+    }
+
+    function changeTimestamp() {
+        cluster = document.getElementById("clusters").value;
+        timestamp = document.getElementById("timestamp").value;
+        history.replaceState({}, cluster, "?cluster=" + cluster + "&ts=" + timestamp);
+        draw(cluster, timestamp);
+    }
+
+    function draw(cluster, timestamp) {
+        var extra="";
+        if (mtime) {
+	    extra="&fetch=mtime";
+        }
+        d3.json(root + "/get/?cluster=" + cluster + "&ts=" + timestamp + extra, function(error, data) {
+            if (error) return console.warn(error);
+            d3.select("#chart")
+                .datum(data)
+                .call(flameGraph);
+        });
+    }
+
+    function clear() {
+        term = document.getElementById('term');
+        if (term) {
+            term.value = '';
+            flameGraph.clear();
+        }
+    }
+
+    function resetZoom() {
+      flameGraph.resetZoom();
+    }
+
+    function onClick(d) {
+      console.info("Clicked on " + d.name);
+    }
+    </script>
+  </body>
+</html>
