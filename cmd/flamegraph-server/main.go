@@ -207,11 +207,9 @@ func timeHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	idQuery := strconv.FormatInt(types.RootElementId, 10)
-
-	query := "select timestamp from flamegraph where id = " + idQuery + " and cluster='" + cluster + "' order by timestamp"
+	query := "select distinct timestamp from flamegraph_timestamps where cluster='" + cluster + "' order by timestamp"
 	if last {
-		query = "select max(timestamp) from flamegraph where id = " + idQuery + " and cluster='" + cluster + "' group by id"
+		query = "select max(timestamp) from flamegraph_timestamps where cluster='" + cluster + "'"
 	}
 
 	var resp []int64
@@ -355,8 +353,6 @@ func getHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	idQuery := strconv.FormatInt(types.RootElementId, 10)
-
 	tsInt, err := strconv.ParseInt(ts, 10, 64)
 	if err != nil {
 		logger.Error("Error parsing ts",
@@ -372,7 +368,7 @@ func getHandler(w http.ResponseWriter, req *http.Request) {
 
 	where := " timestamp=" + ts + " AND cluster='" + cluster + "' AND date='" + date + "'" + "AND level<" + maxLevel
 
-	rows, err := config.db.Query("SELECT total FROM flamegraph WHERE" + where + " AND id = " + idQuery)
+	rows, err := config.db.Query("SELECT sum(total) FROM flamegraph WHERE" + where + " AND name = '[disk]' group by timestamp")
 	if err != nil {
 		logger.Error("Error during database query",
 			zap.Duration("runtime", time.Since(t0)),
@@ -401,7 +397,7 @@ func getHandler(w http.ResponseWriter, req *http.Request) {
 	minValue := int64(float64(total) * removeLowest)
 	minValueQuery := strconv.FormatInt(minValue, 10)
 
-	rows, err = config.db.Query("SELECT timestamp, cluster, id, name, total, " + column + ", children_ids FROM flamegraph WHERE" + where + " AND value > " + minValueQuery)
+	rows, err = config.db.Query("SELECT timestamp, cluster, id, any(name), sum(total), sum(" + column + "), any(children_ids) FROM flamegraph WHERE" + where + " AND value > " + minValueQuery + " group by timestamp, cluster, id")
 	if err != nil {
 		logger.Error("Error during database query",
 			zap.Duration("runtime", time.Since(t0)),
